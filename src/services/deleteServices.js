@@ -15,35 +15,55 @@ export async function deleteAll() {
     const types = [
         'Assets',
         'Management'
-        // 'Dropdowns'
     ]
 
     for (const type of types) {
         console.log(`Module: ${type}`)
-        const items = await getItems(type)
+        const items = await getItems(type, { is_deleted: false })
         await Promise.all(
             items.items
                 .filter(item => item.itemtype !== 'SoftwareLicense')
                 .map(async (item) => {
-                const href =
-                    (type === 'Assets')
-                        ? item.href
-                        : type === 'Management'
-                            ? `/${type}/${item.itemtype}`
-                            : item.href
+                    const href =
+                        (type === 'Assets')
+                            ? item.href
+                            : type === 'Management'
+                                ? `/${type}/${item.itemtype}`
+                                : item.href
 
-                if (!href || href === '/') {
-                    return null
-                }
+                    if (!href || href === '/') {
+                        return null
+                    }
 
-                console.log(`Module: ${href}`)
-                const assets = await getItems(href)
-                return Promise.all(
-                    assets.items.map(asset =>
+                    console.log(`Module: ${href}`)
+                    const assets = await getItems(href, { is_deleted: false })
+
+                    const deletePromises = assets.items.map(asset =>
                         safeDelete(href, asset.id)
                     )
-                )
-            })
+
+                    // ── Si Assets, supprime aussi les modèles associés ──
+                if (type === 'Assets') {
+                    const skipModelTypes = ['Certificate', 'Appliance', 'Unmanaged']
+                    if (skipModelTypes.includes(item.itemtype)) {
+                        return Promise.all(deletePromises)
+                    }
+
+                    const modelHref = `/Dropdowns/${item.itemtype}Model`
+                    console.log(`Module (models): ${modelHref}`)
+                    try {
+                        const models = await getItems(modelHref)
+                        const modelDeletePromises = models.items.map(model =>
+                            safeDelete(modelHref, model.id)
+                        )
+                        deletePromises.push(...modelDeletePromises)
+                    } catch (err) {
+                        console.warn(`⚠️  Pas de modèles pour ${modelHref}:`, err?.message)
+                    }
+                }
+
+                    return Promise.all(deletePromises)
+                })
         )
     }
     await deleteItems()
@@ -76,6 +96,9 @@ export async function deleteItems() {
         '/Knowledgebase/Article',
         '/Knowledgebase/Category',
         'Project',
+        'Dropdowns/State',
+        '/Dropdowns/Location',
+        '/Dropdowns/Manufacturer',
         // 'Assets/Custom/'
     ]
     for (const type of types) {

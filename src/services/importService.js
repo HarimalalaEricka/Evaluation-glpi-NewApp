@@ -1,19 +1,28 @@
-import { getItems, insertItem } from './glpi.js'
+import { getItems, insertItem, patchItem } from './glpi.js'
 
 function getItemLabel(item) {
     return String(item?.username ?? item?.name ?? item?.login ?? '').trim().toLowerCase()
 }
 
-async function getExistingItemInUrl(itemUrl, matchValue) {
-    const { items } = await getItems(itemUrl)
+async function getExistingItemInUrl(itemUrl, matchValue, filters = {}) {
+    const { items } = await getItems(itemUrl, filters)
     const normalizedMatchValue = String(matchValue || '').trim().toLowerCase()
 
     return items.find((item) => getItemLabel(item) === normalizedMatchValue) || null
 }
 
-async function createItemIfMissing(itemUrl, data, matchValue) {
-    const existingItem = await getExistingItemInUrl(itemUrl, matchValue)
+async function createItemIfMissing(itemUrl, data, matchValue, filters = {}) {
+    const existingItem = await getExistingItemInUrl(itemUrl, matchValue, filters)
     if (existingItem) {
+        if( existingItem.is_deleted) {
+            try {
+                const patchedItem = await patchItem(`${itemUrl}/${existingItem.id}`, { is_deleted: false })
+                console.log(`✅ Item réactivé:`, patchedItem)
+                return { item: patchedItem, reused: true }
+            } catch (err) {
+                console.error(`❌ Échec de la réactivation de "${matchValue}":`, err)
+            }
+        }
         return { item: existingItem, reused: true }
     }
 
@@ -25,7 +34,7 @@ async function createItemIfMissing(itemUrl, data, matchValue) {
             throw error
         }
 
-        const fallbackItem = await getExistingItemInUrl(itemUrl, matchValue)
+        const fallbackItem = await getExistingItemInUrl(itemUrl, matchValue, filters)
         if (!fallbackItem) {
             throw error
         }
@@ -120,6 +129,7 @@ export async function importCSVToAPI( itemUrl, items, options = {}) {
             const cleanItem = Object.fromEntries(
                 Object.entries(item).filter(([_, v]) => v !== null && v !== '')
             )
+            console.log(cleanItem)
             
             try {
                 const response = await insertItem(itemUrl, cleanItem)
@@ -162,40 +172,131 @@ export async function importAssets(file)
         errors: []
     }
 
-    for (const item of items)
+    for (const [index, item] of items.entries())
     {
-        let user = {}
-        user.username = item['user']
-        const returnedUserResult = await createItemIfMissing('/Administration/User', user, user.username)
-        const returnedUser = returnedUserResult.item
-        results.success++
-        if (returnedUserResult.reused) {
-            results.skipped++
-            console.log('Utilisateur existant récupéré:', returnedUser)
-        } else {
-            console.log('Utilisateur créé:', returnedUser)
-        }
+        const rowLabel = `[Ligne ${index + 1} - ${item['Name'] || 'sans nom'}]`
 
-        let returnedTech = null
-        let tech = {}
-        tech.username = item['user_tech']
-        const returnedTechResult = await createItemIfMissing('/Administration/User', tech, tech.username)
-        returnedTech = returnedTechResult.item
-        results.success++
-        if (returnedTechResult.reused) {
-            results.skipped++
-            console.log('Technicien existant récupéré:', returnedTech)
-        } else {
-            console.log('Technicien créé:', returnedTech)
-        }
+        try
+        {
+            // ── USER ──────────────────────────────────────────────
+            let returnedUser = null
+            if (item['User'] !== 0)
+            {
+                let user = {}
+                user.name = item['User'].replace(/\r/g, '').trim()
+                console.log(`${rowLabel} 🧾 USER PAYLOAD:`, JSON.stringify(user, null, 2))
 
-        let assets = {}
-        assets.name = item['nom'] 
-        assets.user = returnedUser.id
-        assets.user_tech = returnedTech.id
-        const returnedAsset = await insertItem('/Assets/' + item['asset'], assets)
-        console.log('Actif créé:', assets)
+                try {
+                    const returnedUserResult = await createItemIfMissing('/Administration/User', user, user.name)
+                    returnedUser = returnedUserResult.item
+
+                    if (returnedUserResult.reused) {
+                        console.log(`${rowLabel} ♻️  Utilisateur existant récupéré:`, returnedUser)
+                    } else {
+                        console.log(`${rowLabel} ✅ Utilisateur créé:`, returnedUser)
+                    }
+                } catch (err) {
+                    throw new Error(`Utilisateur "${user.name}" : ${extractApiError(err)}`)
+                }
+            }
+
+            // ── STATE ─────────────────────────────────────────────
+            let returnedState = null
+            try {
+                let state = { 
+                    name: item['Status']?.trim() ,
+                    comment: ""
+                }
+                returnedState = (await createItemIfMissing('/Dropdowns/State', state, state.name)).item
+            } catch (err) {
+                throw new Error(`Status "${item['Status']}" : ${extractApiError(err)}`)
+            }
+
+            // ── LOCATION ──────────────────────────────────────────
+            let returnedLocation = null
+            try {
+                let location = { name: item['Location']?.trim() }
+                returnedLocation = (await createItemIfMissing('/Dropdowns/Location', location, location.name)).item
+            } catch (err) {
+                throw new Error(`Location "${item['Location']}" : ${extractApiError(err)}`)
+            }
+
+            // ── MANUFACTURER ──────────────────────────────────────
+            let returnedManufacturer = null
+            try {
+                let manufacturer = { name: item['Manufacturer']?.trim() }
+                returnedManufacturer = (await createItemIfMissing('/Dropdowns/Manufacturer', manufacturer, manufacturer.name)).item
+            } catch (err) {
+                throw new Error(`Manufacturer "${item['Manufacturer']}" : ${extractApiError(err)}`)
+            }
+
+            // ── MODEL ─────────────────────────────────────────────
+            let returnedModel = null
+            try {
+                let model = { name: item['Model']?.trim() }
+                const modelEndpoint = `/Dropdowns/${item['Item_Type']}Model`
+                returnedModel = (await createItemIfMissing(modelEndpoint, model, model.name)).item
+            } catch (err) {
+                throw new Error(`Model "${item['Model']}" : ${extractApiError(err)}`)
+            }
+
+            // ── ASSET ─────────────────────────────────────────────
+            let assets = {
+                name:         item['Name']?.trim(),
+                otherserial:  item['Inventory_Number']?.trim(),
+                status:    returnedState?.id,
+                location: returnedLocation?.id,
+                manufacturer: returnedManufacturer?.id,
+                model:    returnedModel?.id,
+                is_deleted:   false,
+            }
+
+            if (returnedUser) {
+                assets.user = returnedUser.id
+            }
+
+            console.log(`${rowLabel} 🧾 ASSET PAYLOAD:`, JSON.stringify(assets, null, 2))
+
+            const returnedAsset = await insertItem('/Assets/' + item['Item_Type'], assets)
+            console.log(`${rowLabel} ✅ Actif créé:`, returnedAsset)
+
+            results.success++
+
+        }
+        catch (err)
+        {
+            results.failed++
+            const message = err?.message || String(err)
+            results.errors.push({ row: index + 1, name: item['Name'] || '?', error: message })
+            console.error(`${rowLabel} ❌ ERREUR:`, message)
+        }
     }
 
+    console.group('RÉSUMÉ IMPORT')
+    console.log(`Total   : ${results.total}`)
+    console.log(`Succès  : ${results.success}`)
+    console.log(`Échoués : ${results.failed}`)
+    console.log(`Ignorés : ${results.skipped}`)
+    if (results.errors.length > 0) {
+        console.group('Erreurs détaillées')
+        results.errors.forEach(e => console.error(`  Ligne ${e.row} (${e.name}): ${e.error}`))
+        console.groupEnd()
+    }
+    console.groupEnd()
+
     return results
+}
+
+function extractApiError(err) {
+    try {
+        // Si l'erreur contient du JSON (réponse API)
+        const match = err?.message?.match(/\{.*\}$/s)
+        if (match) {
+            const parsed = JSON.parse(match[0])
+            const extra = parsed?.additional_messages?.map(m => m.message).join(', ')
+            return parsed?.title + (extra ? ` → ${extra}` : '')
+        }
+    } catch (_) { /* pas du JSON, on continue */ }
+
+    return err?.message || String(err)
 }

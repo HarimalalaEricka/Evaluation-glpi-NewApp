@@ -55,16 +55,26 @@ export async function getToken() {
   return cachedToken
 }
 
-export async function getItems(item) 
+export async function getItems(item, filters = {}) 
 {
     const token = await getToken()
-    // const start = (page - 1) * perPage
 
-    const response = await fetch(joinApiPath(BASE_URL, item), {
+    let url = joinApiPath(BASE_URL, item)
+
+    if (Object.keys(filters).length > 0) {
+        const filterString = Object.entries(filters)
+            .map(([key, value]) => `${key}==${value}`)
+            .join(';')
+        url += `?filter=${filterString}`
+    }
+
+    console.log('URL:', url)
+
+    const response = await fetch(url, {
         method: 'GET',
         headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
         }
     })
 
@@ -138,6 +148,7 @@ export async function insertItem(itemUrl, data)
 
     const text = await response.text()
     if (!text) return null
+    console.log('json a envoyer:', JSON.parse(text))
     try {
       return JSON.parse(text)
     } catch (e) {
