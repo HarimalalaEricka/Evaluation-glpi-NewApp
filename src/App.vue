@@ -1,22 +1,78 @@
+<script setup>
+import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import Disconnect from './components/Disconnect.vue'
+
+const route = useRoute()
+
+// Routes qui n'affichent pas la navbar
+const noNavbarRoutes = ['entre']
+
+// Routes de backoffice
+const backofficeRoutes = [
+  'import',
+  'delete',
+  'dashboard'
+]
+
+const shouldShowNavbar = computed(() => !noNavbarRoutes.includes(route.name))
+const isBackoffice = computed(() => backofficeRoutes.includes(route.name))
+console.log(isBackoffice.value)
+
+const isAdmin = computed(() => {
+  return !!localStorage.getItem('userConnected')
+})
+</script>
+
 <template>
-  <div>
-    <nav style="padding: 1rem; background: #f5f5f5;">
-      <!-- <router-link to="/test">Ordinateurs</router-link> -->
-      <!-- <span style="margin: 0 0.75rem;">|</span> -->
-      <!-- <router-link to="/sqlite">Utilisateurs</router-link> -->
-      <!-- <span style="margin: 0 0.75rem;">|</span> -->
-      <router-link to="/delete">Suppression</router-link>
-      <span style="margin: 0 0.75rem;">|</span>
-      <router-link to="/import">Importation</router-link>
-      <Disconnect/>
+  <div id="app-root" :class="{ 'backoffice': isBackoffice }">
+    <nav v-if="shouldShowNavbar" class="navbar">
+      <div class="navbar-container">
+        <router-link to="/" class="navbar-brand">
+          {{ isBackoffice ? '🔧 Admin' : '🛍️ NewApp' }}
+        </router-link>
+        <ul class="navbar-menu">
+          <li v-if="isBackoffice">
+            <router-link to="/dashboard">Acceuil</router-link>
+          </li>
+          <li v-if="isBackoffice">
+            <router-link to="/import">Import</router-link>
+          </li>
+          <li v-if="isBackoffice">
+            <router-link to="/delete">Supprimer</router-link>
+          </li>
+          <!-- <li v-if="!isBackoffice">
+            <router-link to="/">Accueil</router-link>
+          </li> -->
+        </ul>
+        <Disconnect v-if="shouldShowNavbar" />
+      </div>
     </nav>
-    <main style="padding: 1rem;">
+    
+    <main :class="{ 'container': shouldShowNavbar }">
       <router-view />
     </main>
   </div>
 </template>
 
-<script setup>
-import Disconnect from './components/Disconnect.vue'
-import { computed } from 'vue'
-</script>
+<style scoped>
+#app-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+  padding-top: var(--spacing-lg);
+  padding-bottom: var(--spacing-xl);
+}
+
+main.container {
+  max-width: 1200px;
+  margin: var(--spacing-lg) auto 0;
+  padding-left: var(--spacing-lg);
+  padding-right: var(--spacing-lg);
+  width: 100%;
+}
+</style>

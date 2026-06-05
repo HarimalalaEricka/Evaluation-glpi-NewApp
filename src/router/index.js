@@ -4,6 +4,7 @@ import UtilisateursView from '../views/UtilisateursView.vue'
 import deleteView from '../views/deleteView.vue'
 import importView from '../views/importView.vue'
 import entreView from '../views/entreView.vue'
+import dashboardView from '../views/dashboardView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -28,6 +29,12 @@ const router = createRouter({
       path: '/import',
       name: 'import',
       component: importView,
+      meta: { requiresAuth: 'admin' },
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: dashboardView,
       meta: { requiresAuth: 'admin' },
     },
     {
