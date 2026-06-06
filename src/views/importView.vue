@@ -1,8 +1,8 @@
 <script setup>
 import { ref } from 'vue'
-import { importAssets } from '@/services/importService'
+import { importAssets, importTicket } from '@/services/importService'
 
-const file2 = ref(null)
+const ticketFile = ref(null)
 const file3 = ref(null)
 const assetsFile = ref(null)
 const loading = ref(false)
@@ -11,7 +11,7 @@ const error = ref('')
 const isImporting = ref(false)
 
 function onUsersFileChange(event) {
-	file2.value = event.target.files?.[0] || null
+	ticketFile.value = event.target.files?.[0] || null
 	status.value = ''
 	error.value = ''
 }
@@ -29,7 +29,7 @@ function onAssetsFileChange(event) {
 }
 
 async function submitImport() {
-	if (!assetsFile.value && !file2.value && !file3.value) {
+	if (!assetsFile.value && !ticketFile.value && !file3.value) {
 		error.value = 'Sélectionne au moins un fichier CSV.'
 		return
 	}
@@ -39,7 +39,15 @@ async function submitImport() {
 	error.value = ''
 
 	try {
-		await importAssets(assetsFile.value)
+		if (assetsFile.value) {
+			await importAssets(assetsFile.value)
+		}
+		if (ticketFile.value) {
+			await importTicket(ticketFile.value)
+		}
+		if (file3.value) {
+			await importTicket(file3.value)
+		}
 	} catch (err) {
 		error.value = err?.message || 'Erreur lors de l’import.'
 	} finally {
@@ -78,7 +86,7 @@ async function submitImport() {
 							id="users-file"
 						/>
 						<label for="users-file" class="file-custom-btn">
-							{{ file2 ? file2.name : 'Choisir un fichier CSV...' }}
+							{{ ticketFile ? ticketFile.name : 'Choisir un fichier CSV...' }}
 						</label>
 					</div>
 				</div>
@@ -120,7 +128,7 @@ async function submitImport() {
 				<button 
 					type="submit" 
 					class="submit-btn"
-					:disabled="(!assetsFile && !file2 && !file3) || loading"
+					:disabled="(!assetsFile && !ticketFile && !file3) || loading"
 				>
 					{{ loading ? 'Préparation...' : 'Lancer l\'import' }}
 				</button>

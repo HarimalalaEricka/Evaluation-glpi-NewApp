@@ -102,7 +102,7 @@ export async function deleteItems() {
         // 'Assets/Custom/'
     ]
     for (const type of types) {
-        const res = await getItems(type)
+        const res = await getItems(type, { is_deleted: false })
         const items = type === '/Administration/Entity'
             ? res.items.filter(item => item.id !== 0)
             : type === '/Administration/User'

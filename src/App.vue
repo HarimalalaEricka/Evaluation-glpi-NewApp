@@ -17,7 +17,7 @@ const backofficeRoutes = [
 
 const shouldShowNavbar = computed(() => !noNavbarRoutes.includes(route.name))
 const isBackoffice = computed(() => backofficeRoutes.includes(route.name))
-console.log(isBackoffice.value)
+// console.log(isBackoffice.value)
 
 const isAdmin = computed(() => {
   return !!localStorage.getItem('userConnected')

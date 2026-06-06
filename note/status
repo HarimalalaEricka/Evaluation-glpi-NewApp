@@ -1,0 +1,16 @@
+Status
+ITIL defines a standard for ticket status life cycle. This status life cycle is implemented in GLPI by defining the following status:
+
+New
+
+Approval
+
+Processing (assigned)
+
+Processing (planned)
+
+Pending
+
+Solved
+
+Closed

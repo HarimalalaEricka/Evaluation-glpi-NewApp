@@ -1,4 +1,5 @@
 import { getItems, insertItem, patchItem } from './glpi.js'
+import { insertItemV1  } from './glpiV1.js'
 
 function getItemLabel(item) {
     return String(item?.username ?? item?.name ?? item?.login ?? '').trim().toLowerCase()
@@ -45,39 +46,67 @@ async function createItemIfMissing(itemUrl, data, matchValue, filters = {}) {
 
 // Fonction pour parser le CSV et retourner un tableau d'objets
 function parseCSV(csvText, separator = ',') {
-    const lines = csvText.trim().split('\n')
-    const headers = lines[0].split(separator).map(h => h.trim())
-    
+    const lines = csvText.trim().split(/\r?\n/)
+    const headers = parseCSVLine(lines[0], separator)
+
     const results = []
-    
     for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(separator)
+        if (!lines[i].trim()) continue
+        const values = parseCSVLine(lines[i], separator)
         const obj = {}
-        
         headers.forEach((header, index) => {
-            let value = values[index] || ''
-            // Enlever les guillemets si présents
-            if (value.startsWith('"') && value.endsWith('"')) {
-                value = value.slice(1, -1)
-            }
-            // Convertir les types basiques
-            if (value === 'null' || value === '') {
-                obj[header] = null
-            } else if (value === 'true') {
-                obj[header] = true
-            } else if (value === 'false') {
-                obj[header] = false
-            } else if (!isNaN(value) && value !== '') {
-                obj[header] = Number(value)
-            } else {
-                obj[header] = value
-            }
+            const raw = values[index] ?? ''
+            if (raw === 'null' || raw === '') obj[header] = null
+            else if (raw === 'true')          obj[header] = true
+            else if (raw === 'false')         obj[header] = false
+            else if (!isNaN(raw))             obj[header] = Number(raw)
+            else                              obj[header] = raw
         })
-        
         results.push(obj)
     }
-    
     return results
+}
+
+/**
+ * Parse une seule ligne CSV en respectant le standard RFC 4180 :
+ * - champs entre guillemets peuvent contenir des virgules
+ * - guillemets doublés ("") = guillemet littéral
+ */
+function parseCSVLine(line, separator = ',') {
+    const fields = []
+    let i = 0
+
+    while (i < line.length) {
+        if (line[i] === '"') {
+            // Champ entre guillemets
+            let field = ''
+            i++ // saute le guillemet ouvrant
+            while (i < line.length) {
+                if (line[i] === '"' && line[i + 1] === '"') {
+                    field += '"'  // guillemet échappé
+                    i += 2
+                } else if (line[i] === '"') {
+                    i++ // guillemet fermant
+                    break
+                } else {
+                    field += line[i++]
+                }
+            }
+            fields.push(field)
+            if (line[i] === separator) i++ // saute le séparateur
+        } else {
+            // Champ sans guillemets
+            const end = line.indexOf(separator, i)
+            if (end === -1) {
+                fields.push(line.slice(i).trim())
+                break
+            } else {
+                fields.push(line.slice(i, end).trim())
+                i = end + 1
+            }
+        }
+    }
+    return fields
 }
 
 // Fonction pour lire un fichier CSV depuis un input file
@@ -180,7 +209,7 @@ export async function importAssets(file)
         {
             // ── USER ──────────────────────────────────────────────
             let returnedUser = null
-            if (item['User'] !== 0)
+            if (item['User'] !== null)
             {
                 let user = {}
                 user.name = item['User'].replace(/\r/g, '').trim()
@@ -299,4 +328,128 @@ function extractApiError(err) {
     } catch (_) { /* pas du JSON, on continue */ }
 
     return err?.message || String(err)
+}
+
+export async function importTicket(file)
+{
+    const items = await readCSVFile(file)
+    console.log('Tickets à importer:', items)
+
+    const results = {
+        total: items.length,
+        success: 0,
+        failed: 0,
+        errors: []
+    }
+
+    for (const [index, item] of items.entries())
+    {
+        const rowLabel = `[Ligne ${index + 1} - ${item['Name'] || 'sans nom'}]`
+        try {
+            const date = item['Date']
+            const heure = item['Heure']
+            // 1. transformer DD/MM/YYYY -> YYYY-MM-DD
+            const [day, month, year] = date.split('/');
+
+           const glpiDateCreation = `${year}-${month}-${day} ${heure}:00`
+
+            const type = item['Type']
+            let type_id = 0
+            if( type === 'Incident')
+            {
+                type_id = 1
+            }
+            else if( type === 'Demande')
+            {
+                type_id = 2
+            }
+
+            const status = item['Status']
+            let status_id = 0
+            if( status === 'New') status_id = 1
+            else if( status === 'Approval') status_id = 10
+            else if( status === 'Assigned') status_id = 2
+            else if( status === 'Planned') status_id = 3
+            else if( status === 'Pending') status_id = 4
+            else if( status === 'Solved') status_id = 5
+            else if( status === 'Closed') status_id = 6
+
+            const priority = item['Priority']
+            let priority_id = 0
+            if( priority === 'Very low') priority_id = 1
+            else if( priority === 'Low') priority_id = 2
+            else if( priority === 'Medium') priority_id = 3
+            else if( priority === 'High') priority_id = 4
+            else if( priority === 'Very high') priority_id = 5
+            else if( priority === 'Critical') priority_id = 6
+            let ticket = {
+                date_creation: glpiDateCreation,
+                date: glpiDateCreation,
+                date_mod: glpiDateCreation,
+                name: item['Titre'],
+                content: item['Description'],
+                type: type_id,
+                status: status_id,
+                priority: priority_id
+            }
+
+            console.log(`${rowLabel} 🧾 TICKET PAYLOAD:`, JSON.stringify(ticket, null, 2))
+            const returnedTicket = await insertItem('/Assistance/Ticket', ticket)
+
+            const itemsTicket = item['Items']
+            const tableauItem = JSON.parse(itemsTicket)
+            const { items: assets } = await getItems('/Assets')
+
+            for (const tab of tableauItem) {
+                let assetT = null
+
+                for (const assetType of assets) {
+                    const { items: found } = await getItems('/Assets/' + assetType.itemtype, { name: tab, is_deleted: false })
+                    if (found && found.length > 0) {
+                        assetT = {
+                            id: found[0].id,
+                            itemtype: assetType.itemtype
+                        }
+                        break  // ← break seulement si trouvé
+                    }
+                }
+                console.log('assetT:', assetT)
+                if (!assetT) {
+                    console.warn(`⚠️ Aucun asset trouvé pour : ${tab}`)
+                    continue
+                }
+                let itTicket = {
+                    input: {
+                        items_id: assetT.id,
+                        itemtype: assetT.itemtype,
+                        tickets_id : returnedTicket.id
+                    }
+                }
+                console.log(`${rowLabel} 🧾 ITEM TICKET PAYLOAD:`, JSON.stringify(itTicket, null, 2))
+                const itemTicket = await insertItemV1('/Ticket/' + returnedTicket.id + '/Item_Ticket', itTicket)
+            }
+            
+            // const itemTicket = await insertItemV1('/Ticket' + returnedTicket.id + '/Item_Ticket', itTicket)
+
+        } catch (err)
+        {
+            results.failed++
+            const message = err?.message || String(err)
+            results.errors.push({ row: index + 1, name: item['Name'] || '?', error: message })
+            console.error(`${rowLabel} ❌ ERREUR:`, message)
+        }
+    }
+    console.group('RÉSUMÉ IMPORT')
+    console.log(`Total   : ${results.total}`)
+    console.log(`Succès  : ${results.success}`)
+    console.log(`Échoués : ${results.failed}`)
+    console.log(`Ignorés : ${results.skipped}`)
+    if (results.errors.length > 0) {
+        console.group('Erreurs détaillées')
+        results.errors.forEach(e => console.error(`  Ligne ${e.row} (${e.name}): ${e.error}`))
+        console.groupEnd()
+    }
+    console.groupEnd()
+
+    return results
 }

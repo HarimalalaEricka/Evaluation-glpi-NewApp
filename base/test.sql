@@ -175,7 +175,7 @@ VALUES
 INSERT INTO glpi_tickettasks
 (tickets_id, users_id, content, actiontime, date, state)
 VALUES
-(1, 2, 'Verifier alimentation PC', 900, NOW(), 1);
+(35, 2, 'Verifier alimentation PC 2', 600, NOW(), 1);
 
 -- =====================================================
 -- 13. RESOLUTION
