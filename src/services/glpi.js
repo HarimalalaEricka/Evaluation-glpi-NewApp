@@ -55,26 +55,34 @@ export async function getToken() {
   return cachedToken
 }
 
-export async function getItems(item, filters = {}) 
-{
+export async function getItems(item, filters = {}, params = {}) {
     const token = await getToken()
+    console.log('BASE_URL:', BASE_URL) // qu'est ce que ca affiche ?
+    const url = new URL(joinApiPath(BASE_URL, item), window.location.origin) // ✅
 
-    let url = joinApiPath(BASE_URL, item)
-
+    // 📌 FILTER GLPI (format key==value;key2==value2)
     if (Object.keys(filters).length > 0) {
         const filterString = Object.entries(filters)
             .map(([key, value]) => `${key}==${value}`)
             .join(';')
-        url += `?filter=${filterString}`
+
+        url.searchParams.append('filter', filterString)
     }
 
-    console.log('URL:', url)
+    // 📌 PARAMS (range, sort, order, etc.)
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            url.searchParams.append(key, value)
+        }
+    })
+
+    console.log('URL:', url.toString())
 
     const response = await fetch(url, {
         method: 'GET',
         headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json'
         }
     })
 
@@ -86,21 +94,27 @@ export async function getItems(item, filters = {})
         throw new Error(`API error ${response.status}: ${text}`)
     }
 
-    const contentRange = response.headers.get('Content-Range')
+    // 📌 TOTAL via Content-Range
     let total = 0
+    const contentRange = response.headers.get('Content-Range')
+
     if (contentRange) {
-        total = parseInt(contentRange.split('/')[1])
+        total = parseInt(contentRange.split('/')[1]) || 0
     }
 
-    const data = await response.json()
-    console.log('Data reçue:', data)
+    // 📌 DATA parsing flexible
+    let data = await response.json()
 
     let items = []
     if (Array.isArray(data)) items = data
-    else if (data && Array.isArray(data.data)) items = data.data
-    else if (data && Array.isArray(data.results)) items = data.results
+    else if (data?.data && Array.isArray(data.data)) items = data.data
+    else if (data?.results && Array.isArray(data.results)) items = data.results
 
-    return { items, total }
+    return {
+        items,
+        total,
+        contentRange
+    }
 }
 
 export async function deleteItem(itemType, itemId)
