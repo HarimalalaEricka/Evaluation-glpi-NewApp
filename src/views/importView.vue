@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { importAssets, importTicket, importCost, importImages } from '@/services/importService'
+import { deleteAll } from '@/services/deleteServices.js'
 
 const ticketFile = ref(null)
 const costFile = ref(null)
@@ -59,7 +60,15 @@ async function submitImport() {
 			await importImages(imageFile.value)
 		}
 	} catch (err) {
-		error.value = err?.message || 'Erreur lors de l’import.'
+		// Une erreur s'est produite → on annule tout
+        error.value = `Erreur détectée : ${err?.message || err}. Annulation en cours...`
+        
+        try {
+            await deleteAll()
+            error.value += ' Données supprimées avec succès.'
+        } catch (deleteErr) {
+            error.value += ` Échec de la suppression : ${deleteErr?.message || deleteErr}`
+        }
 	} finally {
 		loading.value = false
 	}

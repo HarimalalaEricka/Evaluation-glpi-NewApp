@@ -1,5 +1,6 @@
 import { getItems, insertItem, patchItem } from './glpi.js'
 import { insertItemV1  } from './glpiV1.js'
+import { deleteAll } from './deleteServices.js'
 import JSZip from 'jszip'
 
 function getItemLabel(item) {
@@ -302,6 +303,10 @@ export async function importAssets(file)
         }
     }
 
+    if (results.failed > 0) {
+        throw new Error(`${results.failed} erreur(s) lors de l'import. Voir la console pour les détails.`)
+    }
+
     console.group('RÉSUMÉ IMPORT')
     console.log(`Total   : ${results.total}`)
     console.log(`Succès  : ${results.success}`)
@@ -440,6 +445,9 @@ export async function importTicket(file)
             console.error(`${rowLabel} ❌ ERREUR:`, message)
         }
     }
+    if (results.failed > 0) {
+        throw new Error(`${results.failed} erreur(s) lors de l'import. Voir la console pour les détails.`)
+    }
     console.group('RÉSUMÉ IMPORT')
     console.log(`Total   : ${results.total}`)
     console.log(`Succès  : ${results.success}`)
@@ -489,6 +497,9 @@ export async function importCost(file)
             results.errors.push({ row: index + 1, name: item['Name'] || '?', error: message })
             console.error(`${rowLabel} ❌ ERREUR:`, message)
         }
+    }
+    if (results.failed > 0) {
+        throw new Error(`${results.failed} erreur(s) lors de l'import. Voir la console pour les détails.`)
     }
     console.group('RÉSUMÉ IMPORT')
     console.log(`Total   : ${results.total}`)
@@ -588,7 +599,9 @@ export async function importImages(file) {
             console.error(`${rowLabel} ❌ ERREUR:`, message)
         }
     }
-
+    if (results.failed > 0) {
+        throw new Error(`${results.failed} erreur(s) lors de l'import. Voir la console pour les détails.`)
+    }
     console.group('RÉSUMÉ IMPORT')
     console.log(`Total   : ${results.total}`)
     console.log(`Succès  : ${results.success}`)
