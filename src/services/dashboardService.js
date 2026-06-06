@@ -17,8 +17,6 @@ export async function countElements()
     } catch (err) {
         console.error('Erreur lors du comptage des éléments :', err)
     }
-    console.log('Nombre d\'éléments par type :', countElement)
-    console.log('Nombre total d\'éléments :', countTotal)
     return { countElement, countTotal }
 }
 
@@ -40,7 +38,5 @@ export async function countTickets() {
     } catch (err) {
         console.error('Erreur lors du comptage des éléments :', err)
     }
-    console.log('Nombre total :', countTotal)
-    console.log('Par type :', countTicket)
     return { countTicket, countTotal }
 }
