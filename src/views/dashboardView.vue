@@ -3,14 +3,16 @@ import { ref, onMounted } from 'vue'
 import viteLogo from '../assets/vite.svg'
 import heroImg from '../assets/hero.png'
 import vueLogo from '../assets/vue.svg'
-import { countElements } from '../services/dashboardService'
+import { countElements, countTickets } from '../services/dashboardService'
 
 const count = ref(0)
 const elementCounts = ref({})
+const ticketCounts = ref({})
 
 async function fetchCounts() {
   try {
-    elementCounts.value = await countElements()
+    // elementCounts.value = await countElements()
+    ticketCounts.value = await countTickets()
   } catch (err) {
     console.error('Erreur lors du comptage des éléments :', err)
     elementCounts.value = { error: 'Impossible de récupérer les données' }
