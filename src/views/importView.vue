@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue'
-import { importAssets, importTicket, importCost } from '@/services/importService'
+import { importAssets, importTicket, importCost, importImages } from '@/services/importService'
 
 const ticketFile = ref(null)
 const costFile = ref(null)
 const assetsFile = ref(null)
+const imageFile = ref(null) // ← ajoute ça
 const loading = ref(false)
 const status = ref('')
 const error = ref('')
@@ -28,9 +29,15 @@ function onAssetsFileChange(event) {
 	error.value = ''
 }
 
+async function handleImageFileUpload(event) {
+    imageFile.value = event.target.files[0]
+    status.value = ''
+	error.value = ''
+}
+
 async function submitImport() {
-	if (!assetsFile.value && !ticketFile.value && !costFile.value) {
-		error.value = 'Sélectionne au moins un fichier CSV.'
+	if (!assetsFile.value && !ticketFile.value && !costFile.value && !imageFile.value) {
+		error.value = 'Sélectionne au moins un fichier CSV ou un fichier ZIP.'
 		return
 	}
 
@@ -47,6 +54,9 @@ async function submitImport() {
 		}
 		if (costFile.value) {
 			await importCost(costFile.value)
+		}
+		if(imageFile.value) {             
+			await importImages(imageFile.value)
 		}
 	} catch (err) {
 		error.value = err?.message || 'Erreur lors de l’import.'
@@ -110,7 +120,6 @@ async function submitImport() {
 					<label class="form-label">Fichier ZIP (Images)</label>
 					<div class="file-input-wrapper" :class="{ 'disabled': isImporting }">
 						<input
-							ref="imageFileInput"
 							type="file"
 							accept=".zip"
 							@change="handleImageFileUpload"
@@ -118,7 +127,7 @@ async function submitImport() {
 							id="zip-file"
 						/>
 						<label for="zip-file" class="file-custom-btn">
-							Choisir le fichier ZIP...
+							{{ imageFile ? imageFile.name : 'Choisir le fichier ZIP...' }}
 						</label>
 					</div>
 				</div>
@@ -128,7 +137,7 @@ async function submitImport() {
 				<button 
 					type="submit" 
 					class="submit-btn"
-					:disabled="(!assetsFile && !ticketFile && !costFile) || loading"
+					:disabled="(!assetsFile && !ticketFile && !costFile && !imageFile) || loading"
 				>
 					{{ loading ? 'Préparation...' : 'Lancer l\'import' }}
 				</button>

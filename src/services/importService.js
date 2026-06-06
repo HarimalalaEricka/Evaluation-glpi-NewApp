@@ -1,5 +1,6 @@
 import { getItems, insertItem, patchItem } from './glpi.js'
 import { insertItemV1  } from './glpiV1.js'
+import JSZip from 'jszip'
 
 function getItemLabel(item) {
     return String(item?.username ?? item?.name ?? item?.login ?? '').trim().toLowerCase()
@@ -212,11 +213,11 @@ export async function importAssets(file)
             if (item['User'] !== null)
             {
                 let user = {}
-                user.name = item['User'].replace(/\r/g, '').trim()
+                user.username = item['User'].replace(/\r/g, '').trim()
                 console.log(`${rowLabel} 🧾 USER PAYLOAD:`, JSON.stringify(user, null, 2))
 
                 try {
-                    const returnedUserResult = await createItemIfMissing('/Administration/User', user, user.name)
+                    const returnedUserResult = await createItemIfMissing('/Administration/User', user, user.username)
                     returnedUser = returnedUserResult.item
 
                     if (returnedUserResult.reused) {
@@ -501,5 +502,103 @@ export async function importCost(file)
     }
     console.groupEnd()
 
+    return results
+}
+
+export async function importImages(file) {
+    const arrayBuffer = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target.result)
+        reader.onerror = (e) => reject(e)
+        reader.readAsArrayBuffer(file)
+    })
+
+    const zip = await JSZip.loadAsync(arrayBuffer)
+
+    const images = []
+    zip.forEach((relativePath, zipEntry) => {
+        // Ignorer les dossiers et fichiers Mac
+        if (zipEntry.dir) return
+        if (relativePath.startsWith('__MACOSX')) return
+        if (relativePath.includes('._')) return
+
+        // Garder uniquement les images
+        const ext = relativePath.split('.').pop().toLowerCase()
+        if (!['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return
+
+        images.push({
+        name: zipEntry.name.split('/').pop(), // ex: "PC-ADM-001.png"
+        assetName: zipEntry.name.split('/').pop().replace(/\.[^.]+$/, ''), // ex: "PC-ADM-001"
+        zipEntry
+        })
+    })
+    const results = {
+        total: images.length,
+        success: 0,
+        failed: 0,
+        errors: []
+    }
+
+    for (const [index, item] of images.entries())
+    {
+        const rowLabel = `[Ligne ${index + 1} - ${item['Name'] || 'sans nom'}]`
+        try {
+            let document = {
+                name: item.name,
+                filename: item.name
+            }
+            console.log(`📄 DOCUMENT:`, JSON.stringify(document, null, 2))
+            const returnedDocument = await insertItem('/Management/Document', document)
+            
+            const { items: assets } = await getItems('/Assets')
+
+                let assetF = null
+
+                for (const assetType of assets) {
+                    const { items: found } = await getItems('/Assets/' + assetType.itemtype, { name: item.assetName, is_deleted: false })
+                    if (found && found.length > 0) {
+                        assetF = {
+                            id: found[0].id,
+                            itemtype: assetType.itemtype
+                        }
+                        break  // ← break seulement si trouvé
+                    }
+                }
+                console.log('assetF:', assetF)
+                if (!assetF) {
+                    console.warn(`⚠️ Aucun asset trouvé pour : ${item.assetName}`)
+                    continue
+                }
+                let Doc_item = {
+                    input: {
+                        documents_id: returnedDocument.id,
+                        items_id: assetF.id,
+                        itemtype: assetF.itemtype
+                    }
+                }
+                
+                console.log(` 🧾 ITEM DOCUMENT PAYLOAD:`, JSON.stringify(Doc_item, null, 2))
+                const itemDocument = await insertItemV1('/Document/' + returnedDocument.id + '/Document_Item', Doc_item)
+        }
+        catch (err)
+        {
+            results.failed++
+            const message = err?.message || String(err)
+            results.errors.push({ row: index + 1, name: item['Name'] || '?', error: message })
+            console.error(`${rowLabel} ❌ ERREUR:`, message)
+        }
+    }
+
+    console.group('RÉSUMÉ IMPORT')
+    console.log(`Total   : ${results.total}`)
+    console.log(`Succès  : ${results.success}`)
+    console.log(`Échoués : ${results.failed}`)
+    console.log(`Ignorés : ${results.skipped}`)
+    if (results.errors.length > 0) {
+        console.group('Erreurs détaillées')
+        results.errors.forEach(e => console.error(`  Ligne ${e.row} (${e.name}): ${e.error}`))
+        console.groupEnd()
+    }
+    console.groupEnd()
     return results
 }
