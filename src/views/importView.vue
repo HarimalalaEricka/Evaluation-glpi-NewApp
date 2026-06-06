@@ -1,23 +1,23 @@
 <script setup>
 import { ref } from 'vue'
-import { importAssets, importTicket } from '@/services/importService'
+import { importAssets, importTicket, importCost } from '@/services/importService'
 
 const ticketFile = ref(null)
-const file3 = ref(null)
+const costFile = ref(null)
 const assetsFile = ref(null)
 const loading = ref(false)
 const status = ref('')
 const error = ref('')
 const isImporting = ref(false)
 
-function onUsersFileChange(event) {
+function onTicketFileChange(event) {
 	ticketFile.value = event.target.files?.[0] || null
 	status.value = ''
 	error.value = ''
 }
 
-function onTechsFileChange(event) {
-	file3.value = event.target.files?.[0] || null
+function onCostFileChange(event) {
+	costFile.value = event.target.files?.[0] || null
 	status.value = ''
 	error.value = ''
 }
@@ -29,7 +29,7 @@ function onAssetsFileChange(event) {
 }
 
 async function submitImport() {
-	if (!assetsFile.value && !ticketFile.value && !file3.value) {
+	if (!assetsFile.value && !ticketFile.value && !costFile.value) {
 		error.value = 'Sélectionne au moins un fichier CSV.'
 		return
 	}
@@ -45,8 +45,8 @@ async function submitImport() {
 		if (ticketFile.value) {
 			await importTicket(ticketFile.value)
 		}
-		if (file3.value) {
-			await importTicket(file3.value)
+		if (costFile.value) {
+			await importCost(costFile.value)
 		}
 	} catch (err) {
 		error.value = err?.message || 'Erreur lors de l’import.'
@@ -77,31 +77,31 @@ async function submitImport() {
 				</div>
 
 				<div class="form-group">
-					<label class="form-label">CSV utilisateurs</label>
+					<label class="form-label">CSV Tickets</label>
 					<div class="file-input-wrapper">
 						<input
 							type="file"
 							accept=".csv,text/csv"
-							@change="onUsersFileChange"
-							id="users-file"
+							@change="onTicketFileChange"
+							id="tickets-file"
 						/>
-						<label for="users-file" class="file-custom-btn">
+						<label for="tickets-file" class="file-custom-btn">
 							{{ ticketFile ? ticketFile.name : 'Choisir un fichier CSV...' }}
 						</label>
 					</div>
 				</div>
 
 				<div class="form-group">
-					<label class="form-label">CSV techniciens</label>
+					<label class="form-label">CSV coûts</label>
 					<div class="file-input-wrapper">
 						<input
 							type="file"
 							accept=".csv,text/csv"
-							@change="onTechsFileChange"
-							id="techs-file"
+							@change="onCostFileChange"
+							id="costs-file"
 						/>
-						<label for="techs-file" class="file-custom-btn">
-							{{ file3 ? file3.name : 'Choisir un fichier CSV...' }}
+						<label for="costs-file" class="file-custom-btn">
+							{{ costFile ? costFile.name : 'Choisir un fichier CSV...' }}
 						</label>
 					</div>
 				</div>
@@ -128,7 +128,7 @@ async function submitImport() {
 				<button 
 					type="submit" 
 					class="submit-btn"
-					:disabled="(!assetsFile && !ticketFile && !file3) || loading"
+					:disabled="(!assetsFile && !ticketFile && !costFile) || loading"
 				>
 					{{ loading ? 'Préparation...' : 'Lancer l\'import' }}
 				</button>

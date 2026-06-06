@@ -390,7 +390,8 @@ export async function importTicket(file)
                 content: item['Description'],
                 type: type_id,
                 status: status_id,
-                priority: priority_id
+                priority: priority_id,
+                external_id: item['Ref_Ticket']
             }
 
             console.log(`${rowLabel} 🧾 TICKET PAYLOAD:`, JSON.stringify(ticket, null, 2))
@@ -429,8 +430,57 @@ export async function importTicket(file)
                 const itemTicket = await insertItemV1('/Ticket/' + returnedTicket.id + '/Item_Ticket', itTicket)
             }
             
-            // const itemTicket = await insertItemV1('/Ticket' + returnedTicket.id + '/Item_Ticket', itTicket)
 
+        } catch (err)
+        {
+            results.failed++
+            const message = err?.message || String(err)
+            results.errors.push({ row: index + 1, name: item['Name'] || '?', error: message })
+            console.error(`${rowLabel} ❌ ERREUR:`, message)
+        }
+    }
+    console.group('RÉSUMÉ IMPORT')
+    console.log(`Total   : ${results.total}`)
+    console.log(`Succès  : ${results.success}`)
+    console.log(`Échoués : ${results.failed}`)
+    console.log(`Ignorés : ${results.skipped}`)
+    if (results.errors.length > 0) {
+        console.group('Erreurs détaillées')
+        results.errors.forEach(e => console.error(`  Ligne ${e.row} (${e.name}): ${e.error}`))
+        console.groupEnd()
+    }
+    console.groupEnd()
+
+    return results
+}
+export async function importCost(file)
+{
+    const items = await readCSVFile(file)
+    console.log('Tickets à importer:', items)
+
+    const results = {
+        total: items.length,
+        success: 0,
+        failed: 0,
+        errors: []
+    }
+
+    for (const [index, item] of items.entries())
+    {
+        const rowLabel = `[Ligne ${index + 1} - ${item['Name'] || 'sans nom'}]`
+        try {
+            const concernedTicket = item['Num_Ticket']
+            const foundTicket = await getItems('/Assistance/Ticket', { external_id: concernedTicket })
+            const ticketId = foundTicket.items[0].id
+            let cost = {
+                duration: item['Duration_second'],
+                cost_time: item['Time_Cost'],
+                cost_fixed: item['Fixed_Cost'],
+                ticket: ticketId
+            }
+            console.log(`${rowLabel} 🧾 COST PAYLOAD:`, JSON.stringify(cost, null, 2))
+            console.log('foundTicket:', foundTicket)
+            const returnedCost = await insertItem('/Assistance/Ticket/' + ticketId + '/Cost', cost)
         } catch (err)
         {
             results.failed++
