@@ -97,3 +97,74 @@ export async function insertItemV1(itemUrl, data) {
     return text
   }
 }
+
+export async function getItemsV1(item, filters = {}, params = {}) {
+    const sessionToken = await getTokenV1()
+    // Pagination GLPI (start, limit) → page, perPage
+    if (params.page !== undefined || params.perPage !== undefined) {
+        const page = params.page || 1
+        const perPage = params.perPage || 10
+        params.start = (page - 1) * perPage
+        params.limit = perPage
+        delete params.page
+        delete params.perPage
+    }
+    const url = new URL(joinApiPath(BASE_URL, item), window.location.origin) // ✅
+
+    // 📌 FILTER GLPI (format key==value;key2==value2)
+    if (Object.keys(filters).length > 0) {
+        const filterString = Object.entries(filters)
+            .map(([key, value]) => `${key}==${value}`)
+            .join(';')
+
+        url.searchParams.append('filter', filterString)
+    }
+
+    // 📌 PARAMS (range, sort, order, etc.)
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            url.searchParams.append(key, value)
+        }
+    })
+
+    console.log('URL:', url.toString())
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'App-Token': APP_TOKEN,
+            'Session-Token': sessionToken
+        },
+    })
+
+    console.log('Status:', response.status)
+    console.log('Content-Range:', response.headers.get('Content-Range'))
+
+    if (!response.ok && response.status !== 206) {
+        const text = await response.text()
+        throw new Error(`API error ${response.status}: ${text}`)
+    }
+
+    // 📌 TOTAL via Content-Range
+    let total = 0
+    const contentRange = response.headers.get('Content-Range')
+
+    if (contentRange) {
+        total = parseInt(contentRange.split('/')[1]) || 0
+    }
+
+    // 📌 DATA parsing flexible
+    let data = await response.json()
+
+    let items = []
+    if (Array.isArray(data)) items = data
+    else if (data?.data && Array.isArray(data.data)) items = data.data
+    else if (data?.results && Array.isArray(data.results)) items = data.results
+
+    return {
+        items,
+        total,
+        contentRange
+    }
+}

@@ -12,7 +12,9 @@ const noNavbarRoutes = ['entre']
 const backofficeRoutes = [
   'import',
   'delete',
-  'dashboard'
+  'dashboard',
+  'tickets',
+  'ticketFiche',
 ]
 
 const shouldShowNavbar = computed(() => !noNavbarRoutes.includes(route.name))
@@ -40,6 +42,9 @@ const isAdmin = computed(() => {
           </li>
           <li v-if="isBackoffice">
             <router-link to="/delete">Supprimer</router-link>
+          </li>
+          <li v-if="isBackoffice">
+            <router-link to="/tickets">Tickets</router-link>
           </li>
           <!-- <li v-if="!isBackoffice">
             <router-link to="/">Accueil</router-link>

@@ -5,6 +5,8 @@ import deleteView from '../views/deleteView.vue'
 import importView from '../views/importView.vue'
 import entreView from '../views/entreView.vue'
 import dashboardView from '../views/dashboardView.vue'
+import ticketView from '../views/ticketView.vue'
+import ticketFicheView from '../views/ticketFicheView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -35,6 +37,18 @@ const router = createRouter({
       path: '/dashboard',
       name: 'dashboard',
       component: dashboardView,
+      meta: { requiresAuth: 'admin' },
+    },
+    {
+      path: '/tickets',
+      name: 'tickets',
+      component: ticketView,
+      meta: { requiresAuth: 'admin' },
+    },
+    {
+      path: '/tickets/:id',
+      name: 'ticketFiche',
+      component: ticketFicheView,
       meta: { requiresAuth: 'admin' },
     },
     {

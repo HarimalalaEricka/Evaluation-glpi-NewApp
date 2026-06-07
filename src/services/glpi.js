@@ -57,7 +57,15 @@ export async function getToken() {
 
 export async function getItems(item, filters = {}, params = {}) {
     const token = await getToken()
-    console.log('BASE_URL:', BASE_URL) // qu'est ce que ca affiche ?
+    // Pagination GLPI (start, limit) → page, perPage
+    if (params.page !== undefined || params.perPage !== undefined) {
+        const page = params.page || 1
+        const perPage = params.perPage || 10
+        params.start = (page - 1) * perPage
+        params.limit = perPage
+        delete params.page
+        delete params.perPage
+    }
     const url = new URL(joinApiPath(BASE_URL, item), window.location.origin) // ✅
 
     // 📌 FILTER GLPI (format key==value;key2==value2)
@@ -115,6 +123,25 @@ export async function getItems(item, filters = {}, params = {}) {
         total,
         contentRange
     }
+}
+
+export async function getItemById(itemType, itemId) {
+    const token = await getToken()
+    const response = await fetch(joinApiPath(BASE_URL, itemType, itemId), {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+        }
+    })
+
+    if (!response.ok) {
+        const text = await response.text()
+        throw new Error(`API error ${response.status}: ${text}`)
+    }
+
+    const data = await response.json()
+    return data
 }
 
 export async function deleteItem(itemType, itemId)
