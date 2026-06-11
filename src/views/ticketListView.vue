@@ -1,31 +1,127 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { getAllTickets, updateTicket } from '@/services/ticketService'
+import { getColors, getLangue, getTraductionByLangue, getTraductrionByLangueAndStatus } from '@/services/sqlite.js'
 
 const tickets = ref([])
 const draggingItem = ref(null)
+const statusConfig = ref({});
+const colors = ref({});
+const langues = ref([]);
+const selectedLang = ref(null);
+const traductionConfig = ref([]);
+const isInitializing = ref(true)
+
+async function getTraductrion(idLangue, idStatus)
+{
+    await getTraductrionByLangueAndStatus(idLangue, idStatus)
+}
+
+async function loadColors() {
+  try {
+    colors.value = await getColors();
+    await loadLangues(); // s'assurer que selectedLang est défini
+
+    await Promise.all(
+      colors.value.map(async (c) => {
+        const trad = await getTraductrionByLangueAndStatus(selectedLang.value, c.idStatus);
+        statusConfig.value[c.idStatus] = {
+          label: c.label,
+          color: c.color,
+          background: c.background,
+          idStatus: c.idStatus,
+          traduction: trad?.traduction // fallback sur le label si pas de trad
+        };
+      })
+    );
+
+  } catch (e) {
+    console.error("Erreur lors du chargement des couleurs:", e);
+  }
+}
+
+async function loadLangues() {
+  try {
+    langues.value = await getLangue();
+    console.log("Langues chargées:", langues.value);
+    if (langues.value.length > 0 && !selectedLang.value) {
+      selectedLang.value = langues.value[0].id;
+    }
+  } catch (e) {
+    console.error("Erreur chargement langues:", e);
+  }
+}
+
+async function loadTraductions(langId) {
+  if (!langId) return;
+  try {
+    traductionConfig.value = [];
+    const data = await getTraductionByLangue(langId);
+    traductionConfig.value = data;
+    console.log("Traductions chargées:", data);
+  } catch (e) {
+    console.error("Erreur chargement traductions:", e);
+  }
+}
+
+// =======================
+// WATCH : CHANGEMENT LANGUE
+// =======================
+watch(selectedLang, async (langId) => {
+  if (isInitializing.value) return  // ignore pendant l'init
+  if (!langId) return
+  await applyTraductions(langId)
+})
+
+async function applyTraductions(langId) {
+  if (!langId || colors.value.length === 0) return
+  await Promise.all(
+    colors.value.map(async (c) => {
+      const trad = await getTraductrionByLangueAndStatus(langId, c.idStatus)
+      if (statusConfig.value[c.idStatus]) {
+        statusConfig.value[c.idStatus].traduction = trad
+      }
+    })
+  )
+}
+
+
 
 async function fetchTickets() {
   try {
     const result = await getAllTickets(1, 100)
     tickets.value = result.items
+
+    console.log("Premier ticket :", tickets.value[0])
+    console.log("Tous les tickets :", tickets.value)
   } catch (e) {
-    console.error('Erreur lors du chargement des tickets:', e)
+    console.error(e)
   }
 }
-onMounted(fetchTickets)
+onMounted(async () => {
+  isInitializing.value = true  // bloque le watch
 
-const statusConfig = {
-  1: { label: 'Nouveau',            color: '#f39c12', background: '#fef5e7' },
-  2: { label: 'En cours (assigné)', color: '#3498db', background: '#ebf5fb' },
-  6: { label: 'Clos',               color: '#95a5a6', background: '#f2f3f4' },
-}
+  await loadColors()
+  await loadLangues()                          
+  await applyTraductions(selectedLang.value)  
+  await fetchTickets()
 
-const statuses = computed(() => Object.keys(statusConfig).map(Number))
+  isInitializing.value = false  // réactive le watch pour les changements manuels
+})
+
+const statuses = computed(() => Object.keys(statusConfig.value).map(Number))
 
 const itemsByStatus = (status) => {
-  return tickets.value.filter(item => item.status.id === status)
+  return tickets.value.filter(item => {
+    // Vérification de sécurité au cas où l'objet status serait null ou mal formé
+    if (!item.status) return false; 
+    
+    // On force la conversion en String pour éviter le piège 1 === "1" (qui fait false)
+    const itemId = item.status.id !== undefined ? item.status.id : item.status;
+    return String(itemId) === String(status);
+  })
 }
+console.log("Premier ticket :", tickets.value[0])
 
 function onDragStart(item) {
   draggingItem.value = item
@@ -44,8 +140,8 @@ async function onDrop(targetStatus) {
 
   if (index !== -1) {
     tickets.value[index].status = {
-      id: targetStatus,
-      name: statusConfig[targetStatus].label
+        id: targetStatus,
+        name: statusConfig.value[targetStatus].label
     }
 
     const result = await updateTicket(item.id, { status: targetStatus })
@@ -64,6 +160,11 @@ function onDragEnd() {
 </script>
 
 <template>
+    <select id="lang-select" v-model="selectedLang">
+        <option v-for="l in langues" :key="l.id" :value="l.id">
+          {{ l.langue }}
+        </option>
+      </select>
   <div class="kanban">
     <div
       class="column"
@@ -80,7 +181,7 @@ function onDragEnd() {
       <!-- En-tête de colonne -->
       <div class="column-header">
         <h2 :style="{ color: statusConfig[status].color }">
-          {{ statusConfig[status].label }}
+          {{ statusConfig[status].traduction }}
         </h2>
         <span class="count" :style="{ backgroundColor: statusConfig[status].color }">
           {{ itemsByStatus(status).length }}
@@ -107,7 +208,7 @@ function onDragEnd() {
             color: statusConfig[item.status.id]?.color
           }"
         >
-          {{ statusConfig[item.status.id]?.label }}
+          {{ statusConfig[item.status.id]?.traduction }}
         </span>
       </router-link>
 
@@ -127,7 +228,7 @@ function onDragEnd() {
             color: statusConfig[status].color
           }"
         >
-          {{ statusConfig[status].label }}
+          {{ statusConfig[status].traduction }}
         </span>
       </router-link>
     </div>

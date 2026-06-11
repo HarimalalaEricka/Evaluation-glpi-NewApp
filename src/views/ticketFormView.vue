@@ -6,10 +6,20 @@ import { getItems } from '@/services/glpi'
 const loading = ref(false)
 const error = ref(null)
 const success = ref(false)
-const searchQuery = ref('')
-const searchResults = ref([])
-const allAssets = ref([]) // ← cache des assets
-let searching = ref(false)
+
+// --- Assets (pour "Éléments") ---
+const assetQuery = ref('')
+const assetResults = ref([])
+const allAssets = ref([])
+
+// --- Utilisateurs (pour "Demandeur" et "Attribué à") ---
+const allUsers = ref([])
+
+const requesterQuery = ref('')
+const requesterResults = ref([])
+
+const assignQuery = ref('')
+const assignResults = ref([])
 
 const form = ref({
     name: '',
@@ -18,10 +28,11 @@ const form = ref({
     status: '',
     priority: '',
     date: '',
-    items: []
+    items: [],
+    requesters: [],
+    assigns: [],
 })
 
-// Chargé une seule fois au montage
 async function loadAssets() {
     try {
         const { items: assetTypes } = await getItems('/Assets')
@@ -36,29 +47,73 @@ async function loadAssets() {
     }
 }
 
-// Recherche sur les données déjà chargées
-function searchItem() {
-    const query = searchQuery.value.trim().toLowerCase()
-    if (!query) {
-        searchResults.value = []
-        return
+async function loadUsers() {
+    try {
+        const { items } = await getItems('/Administration/User', { is_deleted: false })
+        allUsers.value = items
+    } catch (err) {
+        console.error('Erreur chargement utilisateurs:', err)
     }
-    searchResults.value = allAssets.value.filter(
-        item => item.name?.toLowerCase().includes(query)
-    )
 }
 
-function selectItem(item) {
+function searchAsset() {
+    const q = assetQuery.value.trim().toLowerCase()
+    assetResults.value = q
+        ? allAssets.value.filter(i => i.name?.toLowerCase().includes(q))
+        : []
+}
+
+function searchRequester() {
+    const q = requesterQuery.value.trim().toLowerCase()
+    requesterResults.value = q
+        ? allUsers.value.filter(u => u.username?.toLowerCase().includes(q))
+        : []
+}
+
+function searchAssign() {
+    const q = assignQuery.value.trim().toLowerCase()
+    assignResults.value = q
+        ? allUsers.value.filter(u => u.username?.toLowerCase().includes(q))
+        : []
+}
+
+function selectAsset(item) {
     const exists = form.value.items.find(i => i.id === item.id && i.itemtype === item.itemtype)
     if (!exists) {
         form.value.items.push({ id: item.id, itemtype: item.itemtype, name: item.name })
     }
-    searchQuery.value = ''
-    searchResults.value = []
+    assetQuery.value = ''
+    assetResults.value = []
 }
 
 function removeItem(index) {
     form.value.items.splice(index, 1)
+}
+
+function selectRequester(user) {
+    const exists = form.value.requesters.find(u => u.id === user.id)
+    if (!exists) {
+        form.value.requesters.push({ id: user.id, name: user.username })
+    }
+    requesterQuery.value = ''
+    requesterResults.value = []
+}
+
+function removeRequester(index) {
+    form.value.requesters.splice(index, 1)
+}
+
+function selectAssign(user) {
+    const exists = form.value.assigns.find(u => u.id === user.id)
+    if (!exists) {
+        form.value.assigns.push({ id: user.id, name: user.username })
+    }
+    assignQuery.value = ''
+    assignResults.value = []
+}
+
+function removeAssign(index) {
+    form.value.assigns.splice(index, 1)
 }
 
 async function submitForm() {
@@ -75,8 +130,12 @@ async function submitForm() {
     }
 }
 
-onMounted(loadAssets) // ← chargement unique
+onMounted(() => {
+    loadAssets()
+    loadUsers()
+})
 </script>
+
 <template>
     <div>
         <h1>Créer un ticket</h1>
@@ -108,11 +167,7 @@ onMounted(loadAssets) // ← chargement unique
                 <label>Statut</label>
                 <select v-model="form.status" required>
                     <option value="1">Nouveau</option>
-                    <option value="10">Approbation</option>
                     <option value="2">Assigné</option>
-                    <option value="3">Planifié</option>
-                    <option value="4">En attente</option>
-                    <option value="5">Résolu</option>
                     <option value="6">Clos</option>
                 </select>
             </div>
@@ -134,29 +189,79 @@ onMounted(loadAssets) // ← chargement unique
                 <input v-model="form.date" type="datetime-local" required />
             </div>
 
+            <!-- DEMANDEUR -->
+            <div>
+                <label>Demandeur</label>
+                <input
+                    v-model="requesterQuery"
+                    type="text"
+                    placeholder="Rechercher un utilisateur..."
+                    @input="searchRequester"
+                />
+                <ul v-if="requesterResults.length > 0" style="border: 1px solid #ccc; list-style: none; padding: 0; margin: 0;">
+                    <li
+                        v-for="user in requesterResults"
+                        :key="user.id"
+                        style="padding: 8px; cursor: pointer;"
+                        @click="selectRequester(user)"
+                    >
+                        {{ user.username }}
+                    </li>
+                </ul>
+                <ul v-if="form.requesters.length > 0" style="margin-top: 8px;">
+                    <li v-for="(user, index) in form.requesters" :key="user.id">
+                        {{ user.name }}
+                        <button type="button" @click="removeRequester(index)">✕</button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ATTRIBUÉ À -->
+            <div>
+                <label>Attribué à</label>
+                <input
+                    v-model="assignQuery"
+                    type="text"
+                    placeholder="Rechercher un utilisateur..."
+                    @input="searchAssign"
+                />
+                <ul v-if="assignResults.length > 0" style="border: 1px solid #ccc; list-style: none; padding: 0; margin: 0;">
+                    <li
+                        v-for="user in assignResults"
+                        :key="user.id"
+                        style="padding: 8px; cursor: pointer;"
+                        @click="selectAssign(user)"
+                    >
+                        {{ user.username }}
+                    </li>
+                </ul>
+                <ul v-if="form.assigns.length > 0" style="margin-top: 8px;">
+                    <li v-for="(user, index) in form.assigns" :key="user.id">
+                        {{ user.name }}
+                        <button type="button" @click="removeAssign(index)">✕</button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ÉLÉMENTS LIÉS -->
             <div>
                 <label>Éléments</label>
                 <input
-                    v-model="searchQuery"
+                    v-model="assetQuery"
                     type="text"
                     placeholder="Rechercher un élément..."
-                    @input="searchItem"
+                    @input="searchAsset"
                 />
-                <div v-if="searching">Recherche...</div>
-
-                <!-- Résultats de recherche -->
-                <ul v-if="searchResults.length > 0" style="border: 1px solid #ccc; list-style: none; padding: 0; margin: 0;">
+                <ul v-if="assetResults.length > 0" style="border: 1px solid #ccc; list-style: none; padding: 0; margin: 0;">
                     <li
-                        v-for="result in searchResults"
+                        v-for="result in assetResults"
                         :key="`${result.itemtype}-${result.id}`"
                         style="padding: 8px; cursor: pointer;"
-                        @click="selectItem(result)"
+                        @click="selectAsset(result)"
                     >
                         {{ result.itemtype }} — {{ result.name }}
                     </li>
                 </ul>
-
-                <!-- Items sélectionnés -->
                 <ul v-if="form.items.length > 0" style="margin-top: 8px;">
                     <li v-for="(item, index) in form.items" :key="index">
                         {{ item.itemtype }} — {{ item.name }}

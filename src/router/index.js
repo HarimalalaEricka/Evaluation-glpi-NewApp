@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import testView from '../views/testView.vue'
-import UtilisateursView from '../views/UtilisateursView.vue'
 import deleteView from '../views/deleteView.vue'
 import importView from '../views/importView.vue'
 import entreView from '../views/entreView.vue'
@@ -10,6 +9,7 @@ import ticketFicheView from '../views/ticketFicheView.vue'
 import elementView from '../views/elementView.vue'
 import ticketFormView from '../views/ticketFormView.vue'
 import ticketListView from '../views/ticketListView.vue'
+import configKanbanView from '../views/configKanbanView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -18,11 +18,6 @@ const router = createRouter({
       path: '/test',
       name: 'test',
       component: testView,
-    },
-    {
-      path: '/sqlite',
-      name: 'utilisateurs',
-      component: UtilisateursView,
     },
     {
       path: '/delete',
@@ -55,12 +50,18 @@ const router = createRouter({
       meta: { requiresAuth: 'admin' },
     },
     {
+      path: '/config-kanban',
+      name: 'configKanban',
+      component: configKanbanView,
+      meta: { requiresAuth: 'admin' },
+    },
+    {
       path: '/ticketDetail/:id',
       name: 'ticketFicheFront',
       component: ticketFicheView,
     },
     {
-      path: '/elements',
+      path: '/',
       name: 'elements',
       component: () => elementView,
     },
@@ -75,7 +76,7 @@ const router = createRouter({
       component: ticketListView,
     },
     {
-      path: '/',
+      path: '/entre',
       name: 'entre',
       component: entreView,
     },

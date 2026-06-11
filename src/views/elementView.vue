@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { getElements } from '@/services/elementService.js'
-import { getItems } from '@/services/glpi.js'
+import { getItems, getDocumentUrl } from '@/services/glpi.js'
+import { getDocId } from '@/services/glpiV1.js'
 
 const elements = ref([])
 const loading = ref(false)
@@ -58,6 +59,13 @@ async function fetchElements() {
     try {
         const result = await getElements(currentPage.value, perPage, filters.value)
         elements.value = result.items
+        elements.value = await Promise.all(elements.value.map(async (element) => {
+            const doc_id = await getDocId(element.itemtype, element.id)
+            return {
+                ...element,
+                documentUrl: getDocumentUrl(doc_id, element.itemtype, element.id)
+            }
+        }))
         total.value = result.total
     } catch (e) {
         error.value = 'Erreur lors du chargement des éléments'
@@ -181,6 +189,7 @@ onMounted(async () => {
         <table v-if="elements.length" border="1">
             <thead>
                 <tr>
+                    <th>Image</th>
                     <th>Type</th>
                     <th>Nom</th>
                     <th>N° Inventaire</th>
@@ -191,6 +200,9 @@ onMounted(async () => {
             </thead>
             <tbody>
                 <tr v-for="element in elements" :key="`${element.itemtype}-${element.id}`">
+                    <td>
+                        <img :src="element.documentUrl" :alt="element.name" width="70" height="70"/>
+                    </td>
                     <td>{{ element.itemtype }}</td>
                     <td>{{ element.name }}</td>
                     <td>{{ element.otherserial }}</td>

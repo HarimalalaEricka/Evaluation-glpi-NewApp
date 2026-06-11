@@ -288,3 +288,6 @@ export async function getAssetsItems(itemType, page = 1, perPage = 10)
 
   return { items, total }
 }
+export function getDocumentUrl(docid, itemtype, items_id) {
+    return `http://localhost/front/document.send.php?docid=${docid}&itemtype=${itemtype}&items_id=${items_id}`
+}

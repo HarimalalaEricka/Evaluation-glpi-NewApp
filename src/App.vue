@@ -15,6 +15,7 @@ const backofficeRoutes = [
   'dashboard',
   'tickets',
   'ticketFiche',
+  'configKanban'
 ]
 
 const shouldShowNavbar = computed(() => !noNavbarRoutes.includes(route.name))
@@ -46,8 +47,11 @@ const isAdmin = computed(() => {
           <li v-if="isBackoffice">
             <router-link to="/tickets">Tickets</router-link>
           </li>
+          <li v-if="isBackoffice">
+            <router-link to="/config-kanban">Config</router-link>
+          </li>
           <li v-if="!isBackoffice">
-            <router-link to="/elements">Éléments</router-link>
+            <router-link to="/">Éléments</router-link>
           </li>
           <li v-if="!isBackoffice">
             <router-link to="/ticket-list">Liste des tickets</router-link>
@@ -56,7 +60,8 @@ const isAdmin = computed(() => {
             <router-link to="/create-ticket">Créer un ticket</router-link>
           </li>
         </ul>
-        <Disconnect v-if="shouldShowNavbar" />
+        <Disconnect v-if="shouldShowNavbar && isBackoffice" />
+        <a href="/entre" v-if="shouldShowNavbar && !isBackoffice">Connect</a>
       </div>
     </nav>
     

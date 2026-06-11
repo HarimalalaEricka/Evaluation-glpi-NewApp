@@ -1,5 +1,5 @@
 import { getItems, insertItem, patchItem } from './glpi.js'
-import { insertItemV1  } from './glpiV1.js'
+import { insertItemV1, uploadDocument } from './glpiV1.js'
 import JSZip from 'jszip'
 
 function getItemLabel(item) {
@@ -373,7 +373,7 @@ export async function importTicket(file)
             let status_id = 0
             if( status === 'New') status_id = 1
             else if( status === 'Approval') status_id = 10
-            else if( status === 'Assigned') status_id = 2
+            else if( status === 'In progress (assigned)' || status === 'In progress') status_id = 2
             else if( status === 'Planned') status_id = 3
             else if( status === 'Pending') status_id = 4
             else if( status === 'Solved') status_id = 5
@@ -515,6 +515,7 @@ export async function importCost(file)
     return results
 }
 
+
 export async function importImages(file) {
     const arrayBuffer = await new Promise((resolve, reject) => {
         const reader = new FileReader()
@@ -526,22 +527,27 @@ export async function importImages(file) {
     const zip = await JSZip.loadAsync(arrayBuffer)
 
     const images = []
+
     zip.forEach((relativePath, zipEntry) => {
-        // Ignorer les dossiers et fichiers Mac
         if (zipEntry.dir) return
         if (relativePath.startsWith('__MACOSX')) return
         if (relativePath.includes('._')) return
 
-        // Garder uniquement les images
         const ext = relativePath.split('.').pop().toLowerCase()
-        if (!['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return
+
+        if (!['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext))
+            return
 
         images.push({
-        name: zipEntry.name.split('/').pop(), // ex: "PC-ADM-001.png"
-        assetName: zipEntry.name.split('/').pop().replace(/\.[^.]+$/, ''), // ex: "PC-ADM-001"
-        zipEntry
+            name: zipEntry.name.split('/').pop(),
+            assetName: zipEntry.name
+                .split('/')
+                .pop()
+                .replace(/\.[^.]+$/, ''),
+            zipEntry
         })
     })
+
     const results = {
         total: images.length,
         success: 0,
@@ -549,68 +555,95 @@ export async function importImages(file) {
         errors: []
     }
 
-    for (const [index, item] of images.entries())
-    {
-        const rowLabel = `[Ligne ${index + 1} - ${item['Name'] || 'sans nom'}]`
+    const { items: assets } = await getItems('/Assets')
+
+    for (const [index, item] of images.entries()) {
         try {
-            let document = {
-                name: item.name,
-                filename: item.name
+            console.log(`📷 Import image : ${item.name}`)
+
+            // Extraction du fichier depuis le zip
+            const imageBlob = await item.zipEntry.async("blob")
+
+            // Upload du document
+            const returnedDocument = await uploadDocument(
+                imageBlob,
+                item.name
+            )
+
+            console.log(
+                "Document créé :",
+                returnedDocument
+            )
+
+            let assetF = null
+
+            for (const assetType of assets) {
+                const { items: found } = await getItems(
+                    '/Assets/' + assetType.itemtype,
+                    {
+                        name: item.assetName,
+                        is_deleted: false
+                    }
+                )
+
+                if (found && found.length > 0) {
+                    assetF = {
+                        id: found[0].id,
+                        itemtype: assetType.itemtype
+                    }
+                    break
+                }
             }
-            console.log(`📄 DOCUMENT:`, JSON.stringify(document, null, 2))
-            const returnedDocument = await insertItem('/Management/Document', document)
-            
-            const { items: assets } = await getItems('/Assets')
 
-                let assetF = null
+            if (!assetF) {
+                console.warn(
+                    `⚠️ Aucun asset trouvé pour ${item.assetName}`
+                )
+                continue
+            }
 
-                for (const assetType of assets) {
-                    const { items: found } = await getItems('/Assets/' + assetType.itemtype, { name: item.assetName, is_deleted: false })
-                    if (found && found.length > 0) {
-                        assetF = {
-                            id: found[0].id,
-                            itemtype: assetType.itemtype
-                        }
-                        break  // ← break seulement si trouvé
-                    }
+            const Doc_item = {
+                input: {
+                    documents_id: returnedDocument.id,
+                    items_id: assetF.id,
+                    itemtype: assetF.itemtype
                 }
-                console.log('assetF:', assetF)
-                if (!assetF) {
-                    console.warn(`⚠️ Aucun asset trouvé pour : ${item.assetName}`)
-                    continue
-                }
-                let Doc_item = {
-                    input: {
-                        documents_id: returnedDocument.id,
-                        items_id: assetF.id,
-                        itemtype: assetF.itemtype
-                    }
-                }
-                
-                console.log(` 🧾 ITEM DOCUMENT PAYLOAD:`, JSON.stringify(Doc_item, null, 2))
-                const itemDocument = await insertItemV1('/Document/' + returnedDocument.id + '/Document_Item', Doc_item)
-        }
-        catch (err)
-        {
+            }
+
+            await insertItemV1(
+                `/Document/${returnedDocument.id}/Document_Item`,
+                Doc_item
+            )
+
+            results.success++
+
+            console.log(
+                `✅ ${item.name} lié à ${assetF.itemtype} ${assetF.id}`
+            )
+
+        } catch (err) {
             results.failed++
-            const message = err?.message || String(err)
-            results.errors.push({ row: index + 1, name: item['Name'] || '?', error: message })
-            console.error(`${rowLabel} ❌ ERREUR:`, message)
+
+            const message =
+                err?.message || String(err)
+
+            results.errors.push({
+                row: index + 1,
+                name: item.name,
+                error: message
+            })
+
+            console.error(
+                `❌ ${item.name}`,
+                message
+            )
         }
     }
-    if (results.failed > 0) {
-        throw new Error(`${results.failed} erreur(s) lors de l'import. Voir la console pour les détails.`)
-    }
-    console.group('RÉSUMÉ IMPORT')
-    console.log(`Total   : ${results.total}`)
-    console.log(`Succès  : ${results.success}`)
-    console.log(`Échoués : ${results.failed}`)
-    console.log(`Ignorés : ${results.skipped}`)
-    if (results.errors.length > 0) {
-        console.group('Erreurs détaillées')
-        results.errors.forEach(e => console.error(`  Ligne ${e.row} (${e.name}): ${e.error}`))
-        console.groupEnd()
-    }
-    console.groupEnd()
+
+    console.log("=== IMPORT IMAGES ===")
+    console.log("Total :", results.total)
+    console.log("Succès :", results.success)
+    console.log("Échecs :", results.failed)
+
     return results
 }

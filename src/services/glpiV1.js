@@ -168,3 +168,147 @@ export async function getItemsV1(item, filters = {}, params = {}) {
         contentRange
     }
 }
+
+export async function getDocId(Type, Id) {
+  const res = await getItemsV1(`/Document`, { is_deleted: 0 }, {})
+  console.log("📦 RAW DOCUMENT RESPONSE:", res)
+
+  const documents = res.documents ?? res.data ?? res.items ?? []
+
+  console.log("📄 DOCUMENTS ARRAY:", documents)
+
+  if (!Array.isArray(documents)) {
+    console.log("❌ documents n'est pas un tableau")
+    return null
+  }
+
+  for (const doc of documents) {
+    console.log("➡️ DOC:", doc)
+
+    const resItem = await getItemsV1(
+      `/Document/${doc.id}/Document_Item`,
+      {},
+      {}
+    )
+
+    console.log("📎 DOCUMENT ITEM RESPONSE:", resItem)
+
+    const documentItem = resItem.items ?? []
+
+    const match = documentItem.find(i =>
+      String(i.items_id) === String(Id) &&
+      String(i.itemtype).trim().toLowerCase() ===
+        String(Type).trim().toLowerCase()
+    )
+
+    if (match) {
+      console.log("✅ MATCH TROUVÉ:", match)
+      return doc.id
+    }
+  }
+
+  console.log("❌ AUCUN MATCH")
+  return null
+}
+
+export function detectMime(data) {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data)
+
+    // sécurité : éviter erreurs si fichier trop petit
+    if (bytes.length < 4) return null
+
+    // JPEG : FF D8 FF
+    if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+      return { mime: 'image/jpeg', ext: 'jpg' }
+    }
+
+    // PNG : 89 50 4E 47
+    if (
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4E &&
+      bytes[3] === 0x47
+    ) {
+      return { mime: 'image/png', ext: 'png' }
+    }
+
+    // GIF : 47 49 46
+    if (
+      bytes[0] === 0x47 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46
+    ) {
+      return { mime: 'image/gif', ext: 'gif' }
+    }
+
+    // WEBP : 52 49 46 46 .... 57 45 42 50
+    if (
+      bytes[0] === 0x52 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x46 &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50
+    ) {
+      return { mime: 'image/webp', ext: 'webp' }
+    }
+
+    // BMP : 42 4D
+    if (bytes[0] === 0x42 && bytes[1] === 0x4D) {
+      return { mime: 'image/bmp', ext: 'bmp' }
+    }
+
+    return null
+}
+
+export async function uploadDocument(fileBlob, fileName) {
+    const token = await getTokenV1()
+
+    const buffer = await fileBlob.arrayBuffer()
+    const detected = detectMime(buffer)
+
+    if (!detected) {
+        throw new Error("Format fichier non supporté")
+    }
+
+    const fixedFile = new File(
+        [buffer],
+        fileName.replace(/\.\w+$/, `.${detected.ext}`),
+        { type: detected.mime }
+    )
+
+    const formData = new FormData()
+
+    formData.append(
+        "uploadManifest",
+        JSON.stringify({
+            input: {
+                name: fixedFile.name,
+                _filename: ["filename[0]"],
+                entities_id: 0
+            }
+        })
+    )
+
+    formData.append("filename[0]", fixedFile)
+
+    const response = await fetch(
+        joinApiPath(BASE_URL, "/Document"),
+        {
+            method: "POST",
+            headers: {
+                "App-Token": APP_TOKEN,
+                "Session-Token": token
+            },
+            body: formData
+        }
+    )
+
+    if (!response.ok) {
+        throw new Error(await response.text())
+    }
+
+    return await response.json()
+}

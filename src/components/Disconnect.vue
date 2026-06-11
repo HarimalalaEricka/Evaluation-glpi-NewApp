@@ -41,7 +41,7 @@ function disconnect() {
     //   localStorage.removeItem('guestSession')
     // }
 
-    router.replace({ name: 'entre' })
+    router.replace({ name: 'elements' })
   } catch (error) {
     console.error('Erreur lors de la déconnexion :', error)
   }

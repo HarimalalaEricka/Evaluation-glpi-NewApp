@@ -11,8 +11,11 @@ export async function countElements()
         for (const type of assets)
         {
             asset = await getItems(`/Assets/${type.itemtype}`, { is_deleted: false }, { range: '0-0'})
-            countElement[type.itemtype] = asset.total
-            countTotal += asset.total
+            if( type.itemtype === 'Computer' || type.itemtype === 'Monitor' || type.itemtype === 'Phone' )
+            {
+                countElement[type.itemtype] = asset.total
+                countTotal += asset.total
+            }
         }
     } catch (err) {
         console.error('Erreur lors du comptage des éléments :', err)
