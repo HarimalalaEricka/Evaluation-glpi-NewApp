@@ -87,7 +87,6 @@ async function applyTraductions(langId) {
 }
 
 
-
 async function fetchTickets() {
   try {
     const result = await getAllTickets(1, 100)
