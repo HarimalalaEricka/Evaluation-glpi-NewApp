@@ -116,7 +116,7 @@ router.beforeEach((to, from) => {
   const required = to.meta.requiresAuth
   // const allowGuest = Boolean(to.meta.allowGuest)
 
-  if (required === 'admin' && !admin) return '/'
+  if (required === 'admin' && !admin) return '/entre'
 
   // if (required === 'customer') {
   //   if (!customer) return '/'

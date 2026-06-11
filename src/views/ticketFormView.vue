@@ -1,11 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { createTicket } from '@/services/ticketService'
 import { getItems } from '@/services/glpi'
 
 const loading = ref(false)
 const error = ref(null)
 const success = ref(false)
+const route = useRoute() 
 
 // --- Assets (pour "Éléments") ---
 const assetQuery = ref('')
@@ -25,12 +27,21 @@ const form = ref({
     name: '',
     content: '',
     type: '',
-    status: '',
+    status: route.query.status,
     priority: '',
     date: '',
     items: [],
     requesters: [],
     assigns: [],
+    team: [],
+    costs: []
+})
+
+const newCost = ref({
+    name: '',
+    duration: '',
+    cost_time: '',
+    cost_fixed: ''
 })
 
 async function loadAssets() {
@@ -93,7 +104,8 @@ function removeItem(index) {
 function selectRequester(user) {
     const exists = form.value.requesters.find(u => u.id === user.id)
     if (!exists) {
-        form.value.requesters.push({ id: user.id, name: user.username })
+        form.value.requesters.push({ id: user.id, type: 'User', role: 'requester' })
+        form.value.team.push({ id: user.id, type: 'User', role: 'requester' })
     }
     requesterQuery.value = ''
     requesterResults.value = []
@@ -106,7 +118,8 @@ function removeRequester(index) {
 function selectAssign(user) {
     const exists = form.value.assigns.find(u => u.id === user.id)
     if (!exists) {
-        form.value.assigns.push({ id: user.id, name: user.username })
+        form.value.assigns.push({ id: user.id, type: 'User', role: 'assigned' })
+        form.value.team.push({ id: user.id, type: 'User', role: 'assigned' })
     }
     assignQuery.value = ''
     assignResults.value = []
@@ -114,6 +127,16 @@ function selectAssign(user) {
 
 function removeAssign(index) {
     form.value.assigns.splice(index, 1)
+}
+
+function addCost() {
+    if (!newCost.value.name) return
+    form.value.costs.push({ ...newCost.value })
+    newCost.value = { name: '', duration: '', cost_time: '', cost_fixed: '' }
+}
+
+function removeCost(index) {
+    form.value.costs.splice(index, 1)
 }
 
 async function submitForm() {
@@ -210,7 +233,7 @@ onMounted(() => {
                 </ul>
                 <ul v-if="form.requesters.length > 0" style="margin-top: 8px;">
                     <li v-for="(user, index) in form.requesters" :key="user.id">
-                        {{ user.name }}
+                        {{ user.username }}
                         <button type="button" @click="removeRequester(index)">✕</button>
                     </li>
                 </ul>
@@ -237,7 +260,7 @@ onMounted(() => {
                 </ul>
                 <ul v-if="form.assigns.length > 0" style="margin-top: 8px;">
                     <li v-for="(user, index) in form.assigns" :key="user.id">
-                        {{ user.name }}
+                        {{ user.username }}
                         <button type="button" @click="removeAssign(index)">✕</button>
                     </li>
                 </ul>
@@ -266,6 +289,50 @@ onMounted(() => {
                     <li v-for="(item, index) in form.items" :key="index">
                         {{ item.itemtype }} — {{ item.name }}
                         <button type="button" @click="removeItem(index)">✕</button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- COÛTS -->
+            <div>
+                <label>Coûts</label>
+
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+                    <input
+                        v-model="newCost.name"
+                        type="text"
+                        placeholder="Nom"
+                    />
+                    <input
+                        v-model="newCost.duration"
+                        type="number"
+                        min="0"
+                        placeholder="Durée (min)"
+                    />
+                    <input
+                        v-model="newCost.cost_time"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Coût horaire"
+                    />
+                    <input
+                        v-model="newCost.cost_fixed"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Coût fixe"
+                    />
+                    <button type="button" @click="addCost">+ Ajouter</button>
+                </div>
+
+                <ul v-if="form.costs.length > 0" style="margin-top: 8px;">
+                    <li v-for="(cost, index) in form.costs" :key="index" style="margin-bottom: 4px;">
+                        <strong>{{ cost.name }}</strong>
+                        — {{ cost.duration }} min
+                        — {{ cost.cost_time }} €/h
+                        — {{ cost.cost_fixed }} € fixe
+                        <button type="button" @click="removeCost(index)">✕</button>
                     </li>
                 </ul>
             </div>

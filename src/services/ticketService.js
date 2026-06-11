@@ -58,13 +58,51 @@ export async function createTicket(jsonData) {
         console.log(`🧾 TICKET PAYLOAD:`, JSON.stringify(ticket, null, 2))
         const returnedTicket = await insertItem('/Assistance/Ticket', ticket)
 
+        // insertion des teams
+        for( const member of jsonData.team)
+        {
+            let itTeam = {
+                id: member.id,
+                type: member.type,
+                role: member.role
+            }
+            console.log(`🧾 TEAM MEMBER PAYLOAD:`, JSON.stringify(itTeam, null, 2))
+            try {
+                await insertItem('/Assistance/Ticket/' + returnedTicket.id + '/teamMember', itTeam)
+                console.log(`✅ Team member ajouté`)
+            } catch (err) {
+                console.error(`❌ Erreur team member:`, err)
+                throw err
+            }
+        }
+
+        // insertion des couts lies au ticket
+        for( const cost of jsonData.costs)
+        {
+            let itCost = {
+                name: cost.name,
+                duration: cost.duration,
+                cost_time: cost.cost_time,
+                cost_fixed: cost.cost_fixed
+            }
+            console.log(`🧾 TEAM cost DATA:`, JSON.stringify(cost, null, 2))
+            console.log(`🧾 TEAM cost PAYLOAD:`, JSON.stringify(itCost, null, 2))
+            try {
+                await insertItem('/Assistance/Ticket/' + returnedTicket.id + '/cost', itCost)
+                console.log(`✅ Team cost ajouté`)
+            } catch (err) {
+                console.error(`❌ Erreur team cost:`, err)
+                throw err
+            }
+        }
+
         // insertion des items liés au ticket
         for (const item of jsonData.items) {
             let itTicket = {
                 input: {
                     items_id: item.id,           
                     itemtype: item.itemtype,      
-                    tickets_id: returnedTicket.id
+                    // tickets_id: returnedTicket.id
                 }
             }
             console.log(`🧾 ITEM TICKET PAYLOAD:`, JSON.stringify(itTicket, null, 2))

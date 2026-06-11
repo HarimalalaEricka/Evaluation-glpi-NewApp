@@ -17,7 +17,7 @@ app.use(router)
 window.addEventListener('storage', (event) => {
 	if (event.key === 'userConnected' && !event.newValue) {
 		try {
-			router.push('/')
+			router.push('/entree')
 		} catch (err) {
 			// ignore if router non disponible
 			console.error('Erreur lors de la redirection après storage event', err)

@@ -30,6 +30,7 @@ async function loadColors() {
           color: c.color,
           background: c.background,
           idStatus: c.idStatus,
+          idStatusGlpi: c.idStatusGlpi,
           traduction: trad?.traduction // fallback sur le label si pas de trad
         };
       })
@@ -214,10 +215,10 @@ function onDragEnd() {
 
       <!-- Ajouter un ticket — toujours visible en bas de chaque colonne -->
       <router-link
-        to="/create-ticket"
+        :to="{ path: '/create-ticket', query: { status: String(statusConfig[status].idStatusGlpi) } }"
         class="add-ticket"
         :style="{ borderLeft: '5px solid ' + statusConfig[status].color }"
-      >
+        >
         <p class="card-title">
           <span class="add-icon">+</span> Ajouter un ticket
         </p>
