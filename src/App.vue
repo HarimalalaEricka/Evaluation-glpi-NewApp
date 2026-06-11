@@ -46,9 +46,15 @@ const isAdmin = computed(() => {
           <li v-if="isBackoffice">
             <router-link to="/tickets">Tickets</router-link>
           </li>
-          <!-- <li v-if="!isBackoffice">
-            <router-link to="/">Accueil</router-link>
-          </li> -->
+          <li v-if="!isBackoffice">
+            <router-link to="/elements">Éléments</router-link>
+          </li>
+          <li v-if="!isBackoffice">
+            <router-link to="/ticket-list">Liste des tickets</router-link>
+          </li>
+          <li v-if="!isBackoffice">
+            <router-link to="/create-ticket">Créer un ticket</router-link>
+          </li>
         </ul>
         <Disconnect v-if="shouldShowNavbar" />
       </div>

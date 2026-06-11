@@ -90,6 +90,7 @@ export async function deleteItems() {
         '/Assets/Cable',
         'Management/License',
         'Management/DomainRecord',
+        '/Management/Document',
         '/Inventory/Agent',
         '/Inventory/LockedField',
         // '/Inventory/SNMPCredential',

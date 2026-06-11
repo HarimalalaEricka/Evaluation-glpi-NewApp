@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { importAssets, importTicket, importCost, importImages } from '@/services/importService'
 import { deleteAll } from '@/services/deleteServices.js'
 

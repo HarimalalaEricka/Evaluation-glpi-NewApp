@@ -1,6 +1,5 @@
 import { getItems, insertItem, patchItem } from './glpi.js'
 import { insertItemV1  } from './glpiV1.js'
-import { deleteAll } from './deleteServices.js'
 import JSZip from 'jszip'
 
 function getItemLabel(item) {
@@ -433,7 +432,7 @@ export async function importTicket(file)
                     }
                 }
                 console.log(`${rowLabel} 🧾 ITEM TICKET PAYLOAD:`, JSON.stringify(itTicket, null, 2))
-                const itemTicket = await insertItemV1('/Ticket/' + returnedTicket.id + '/Item_Ticket', itTicket)
+                const itemTicket = await insertItemV1('/Ticket/' + returnedTicket.id + '/', itTicket)
             }
             
 

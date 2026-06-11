@@ -196,6 +196,33 @@ export async function insertItem(itemUrl, data)
       return text
     }
 }
+export async function updateItem(itemUrl, data, idItem)
+{
+    const token = await getToken()
+    const response = await fetch(joinApiPath(BASE_URL, itemUrl, idItem), {
+        method: 'PATCH',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`API error ${response.status}: ${text}`)
+    }
+
+    const text = await response.text()
+    if (!text) return null
+    console.log('json a envoyer:', JSON.parse(text))
+    try {
+      return JSON.parse(text)
+    } catch (e) {
+      return text
+    }
+}
 
 export async function patchItem(itemUrl, data)
 {

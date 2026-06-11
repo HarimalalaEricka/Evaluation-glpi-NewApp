@@ -7,6 +7,9 @@ import entreView from '../views/entreView.vue'
 import dashboardView from '../views/dashboardView.vue'
 import ticketView from '../views/ticketView.vue'
 import ticketFicheView from '../views/ticketFicheView.vue'
+import elementView from '../views/elementView.vue'
+import ticketFormView from '../views/ticketFormView.vue'
+import ticketListView from '../views/ticketListView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -50,6 +53,26 @@ const router = createRouter({
       name: 'ticketFiche',
       component: ticketFicheView,
       meta: { requiresAuth: 'admin' },
+    },
+    {
+      path: '/ticketDetail/:id',
+      name: 'ticketFicheFront',
+      component: ticketFicheView,
+    },
+    {
+      path: '/elements',
+      name: 'elements',
+      component: () => elementView,
+    },
+    {
+      path: '/create-ticket',
+      name: 'createTicket',
+      component: () => ticketFormView,
+    },
+    {
+      path: '/ticket-list',
+      name: 'ticketList',
+      component: ticketListView,
     },
     {
       path: '/',
