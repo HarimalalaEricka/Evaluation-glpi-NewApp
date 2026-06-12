@@ -37,41 +37,51 @@ async function handleImageFileUpload(event) {
 }
 
 async function submitImport() {
-	if (!assetsFile.value && !ticketFile.value && !costFile.value && !imageFile.value) {
-		error.value = 'Sélectionne au moins un fichier CSV ou un fichier ZIP.'
-		return
-	}
+    if (!assetsFile.value && !ticketFile.value && !costFile.value && !imageFile.value) {
+        error.value = 'Sélectionne au moins un fichier CSV ou un fichier ZIP.'
+        return
+    }
 
-	loading.value = true
-	status.value = ''
-	error.value = ''
+    loading.value = true
+    status.value = ''
+    error.value = ''
 
-	try {
-		if (assetsFile.value) {
-			await importAssets(assetsFile.value)
-		}
-		if (ticketFile.value) {
-			await importTicket(ticketFile.value)
-		}
-		if (costFile.value) {
-			await importCost(costFile.value)
-		}
-		if(imageFile.value) {             
-			await importImages(imageFile.value)
-		}
-	} catch (err) {
-		// Une erreur s'est produite → on annule tout
-        error.value = `Erreur détectée : ${err?.message || err}. Annulation en cours...`
-        
+    try {
+        if (assetsFile.value) {
+            await importAssets(assetsFile.value)
+        }
+        if (ticketFile.value) {
+            await importTicket(ticketFile.value)
+        }
+        if (costFile.value) {
+            await importCost(costFile.value)
+        }
+        if (imageFile.value) {
+            await importImages(imageFile.value)
+        }
+
+        status.value = '✅ Import terminé avec succès.'
+
+    } catch (err) {
+        const detail = err?.response
+            ? `HTTP ${err.response.status} — ${err.response.statusText} — ${JSON.stringify(err.response.data ?? '')}`
+            : err?.message || String(err)
+
+        error.value = `❌ Erreur détectée : ${detail}. Annulation en cours...`
+        console.error('❌ Erreur import complète:', err)
+
         try {
             await deleteAll()
-            error.value += ' Données supprimées avec succès.'
+            error.value += ' ✅ Données supprimées avec succès.'
         } catch (deleteErr) {
-            error.value += ` Échec de la suppression : ${deleteErr?.message || deleteErr}`
+            const deleteDetail = deleteErr?.message || String(deleteErr)
+            error.value += ` ⚠️ Échec de la suppression : ${deleteDetail}`
+            console.error('❌ Erreur deleteAll:', deleteErr)
         }
-	} finally {
-		loading.value = false
-	}
+
+    } finally {
+        loading.value = false
+    }
 }
 </script>
 <template>

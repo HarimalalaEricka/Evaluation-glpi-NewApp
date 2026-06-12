@@ -1,5 +1,6 @@
 import { getItems, insertItem, patchItem } from './glpi.js'
 import { insertItemV1, uploadDocument } from './glpiV1.js'
+import { updateTicket } from './ticketService.js'
 import JSZip from 'jszip'
 
 function getItemLabel(item) {
@@ -387,6 +388,14 @@ export async function importTicket(file)
             else if( priority === 'High') priority_id = 4
             else if( priority === 'Very high') priority_id = 5
             else if( priority === 'Critical') priority_id = 6
+            let state_temporaire_clos= 0;
+            if ( status_id === 6)
+            {
+                state_temporaire_clos = 1
+            }
+            else {
+                state_temporaire_clos = status_id
+            }
             let ticket = {
                 date_creation: glpiDateCreation,
                 date: glpiDateCreation,
@@ -394,7 +403,7 @@ export async function importTicket(file)
                 name: item['Titre'],
                 content: item['Description'],
                 type: type_id,
-                status: status_id,
+                status: state_temporaire_clos,
                 priority: priority_id,
                 external_id: item['Ref_Ticket']
             }
@@ -432,9 +441,10 @@ export async function importTicket(file)
                     }
                 }
                 console.log(`${rowLabel} 🧾 ITEM TICKET PAYLOAD:`, JSON.stringify(itTicket, null, 2))
-                const itemTicket = await insertItemV1('/Ticket/' + returnedTicket.id + '/', itTicket)
+                const itemTicket = await insertItemV1('/Ticket/' + returnedTicket.id + '/Item_Ticket', itTicket)
             }
-            
+            const stateupt = await updateTicket( returnedTicket.id, { status: status_id })
+            console.log('stateupt:', stateupt)
 
         } catch (err)
         {
@@ -478,7 +488,7 @@ export async function importCost(file)
         const rowLabel = `[Ligne ${index + 1} - ${item['Name'] || 'sans nom'}]`
         try {
             const concernedTicket = item['Num_Ticket']
-            const foundTicket = await getItems('/Assistance/Ticket', { external_id: concernedTicket })
+            const foundTicket = await getItems('/Assistance/Ticket', { external_id: concernedTicket, is_deleted: false })
             const ticketId = foundTicket.items[0].id
             let cost = {
                 duration: item['Duration_second'],
