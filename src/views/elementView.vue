@@ -172,7 +172,7 @@ onMounted(async () => {
                 <select v-model="filters.user">
                     <option value="">Tous</option>
                     <option v-for="u in users" :key="u.id" :value="u.id">
-                        {{ u.name }}
+                        {{ u.username }}
                     </option>
                 </select>
             </div>
@@ -196,6 +196,8 @@ onMounted(async () => {
                     <th>Statut</th>
                     <th>Localisation</th>
                     <th>Fabricant</th>
+                    <th>Model</th>
+                    <th>User</th>
                 </tr>
             </thead>
             <tbody>
@@ -209,6 +211,8 @@ onMounted(async () => {
                     <td>{{ element.status?.name }}</td>
                     <td>{{ element.location?.name }}</td>
                     <td>{{ element.manufacturer?.name }}</td>
+                    <td>{{ element.model?.name }}</td>
+                    <td>{{ element.user?.name }}</td>
                 </tr>
             </tbody>
         </table>

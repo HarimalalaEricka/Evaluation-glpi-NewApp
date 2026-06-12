@@ -38,11 +38,6 @@ async function getTotals(assets, filters = {}) {
 function buildServerFilters(filters = {}) {
     const glpiFilters = { is_deleted: false }
 
-    if (filters.status)       glpiFilters.status       = filters.status
-    if (filters.location)     glpiFilters.location     = filters.location
-    if (filters.manufacturer) glpiFilters.manufacturer = filters.manufacturer
-    if (filters.user)         glpiFilters.user         = filters.user
-
     return glpiFilters
 }
 
@@ -51,6 +46,10 @@ function clientFilter(items, filters) {
         if (filters.name && !item.name?.toLowerCase().includes(filters.name.toLowerCase())) return false
         if (filters.model && !item.model?.name?.toLowerCase().includes(filters.model.toLowerCase())) return false
         if (filters.otherserial && !item.otherserial?.toLowerCase().includes(filters.otherserial.toLowerCase())) return false
+        if (filters.status && String(item.status?.id) !== String(filters.status)) return false
+        if (filters.location && String(item.location?.id) !== String(filters.location)) return false  // ← ajouter
+        if (filters.manufacturer && String(item.manufacturer?.id) !== String(filters.manufacturer)) return false  // ← ajouter
+        if (filters.user && String(item.user?.id) !== String(filters.user)) return false  // ← ajouter
         return true
     })
 }
@@ -59,22 +58,20 @@ export async function getElements(page = 1, perPage = 10, filters = {}) {
     let allItems = []
 
     const hasTextFilter = !!(filters.name || filters.model || filters.otherserial)
+    const hasServerFilter = !!(filters.status || filters.location || filters.manufacturer || filters.user)
+    const needsClientPagination = hasTextFilter || hasServerFilter
+
     const assets = await getAssetTypes()
     const glpiFilters = buildServerFilters(filters)
 
-    if (hasTextFilter) {
-        // Charger tout pour filtrer côté client
+    if (needsClientPagination) {
         for (const type of assets) {
             if (filters.itemtype && type.itemtype !== filters.itemtype) continue
 
-            const { items } = await getItems(
-                `/Assets/${type.itemtype}`,
-                glpiFilters
-            )
+            const { items } = await getItems(`/Assets/${type.itemtype}`, glpiFilters)
             allItems = [...allItems, ...items.map(item => ({ ...item, itemtype: type.itemtype }))]
         }
 
-        // Filtrage côté client
         allItems = clientFilter(allItems, filters)
 
         const total = allItems.length

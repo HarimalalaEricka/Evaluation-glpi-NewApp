@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { getAllTickets, updateTicket } from '@/services/ticketService'
+import { getAllTickets, updateTicket, insertTeam, insertCost } from '@/services/ticketService'
 import { getColors, getLangue, getTraductionByLangue, getTraductrionByLangueAndStatus } from '@/services/sqlite.js'
+import ConfirmStatusDialog from '@/components/ConfirmStatusDialog.vue'
 
 const tickets = ref([])
 const draggingItem = ref(null)
@@ -11,6 +12,9 @@ const langues = ref([]);
 const selectedLang = ref(null);
 const traductionConfig = ref([]);
 const isInitializing = ref(true)
+const showConfirm = ref(false)
+const pendingDrop = ref(null)
+
 
 async function getTraductrion(idLangue, idStatus)
 {
@@ -113,12 +117,10 @@ const statuses = computed(() => Object.keys(statusConfig.value).map(Number))
 
 const itemsByStatus = (status) => {
   return tickets.value.filter(item => {
-    // Vérification de sécurité au cas où l'objet status serait null ou mal formé
-    if (!item.status) return false; 
-    
-    // On force la conversion en String pour éviter le piège 1 === "1" (qui fait false)
-    const itemId = item.status.id !== undefined ? item.status.id : item.status;
-    return String(itemId) === String(status);
+    if (!item.status) return false
+    const itemId = item.status.id !== undefined ? item.status.id : item.status
+    const glpiId = statusConfig.value[status]?.idStatusGlpi  // ← utiliser idStatusGlpi
+    return String(itemId) === String(glpiId)
   })
 }
 console.log("Premier ticket :", tickets.value[0])
@@ -138,24 +140,52 @@ async function onDrop(targetStatus) {
   const item = draggingItem.value
   const index = tickets.value.findIndex(t => t.id === item.id)
 
-  if (index !== -1) {
-    tickets.value[index].status = {
-        id: targetStatus,
-        name: statusConfig.value[targetStatus].label
-    }
-
-    const result = await updateTicket(item.id, { status: targetStatus })
-    if (result.failed > 0) {
-      console.error('Échec de la mise à jour du ticket:', result.errors)
-      tickets.value[index].status = item.status
-    }
+  pendingDrop.value = {
+    item,
+    index,
+    targetStatus,
+    previousStatus: { ...item.status }
   }
-
+  showConfirm.value = true
   draggingItem.value = null
 }
 
 function onDragEnd() {
   draggingItem.value = null
+}
+
+async function confirmDrop(data) {
+  const { item, index, targetStatus, previousStatus } = pendingDrop.value
+  showConfirm.value = false
+
+  const glpiStatus = statusConfig.value[targetStatus].idStatusGlpi
+
+  tickets.value[index].status = {
+  id: glpiStatus,           
+  name: statusConfig.value[targetStatus].label
+}
+
+  try {
+    await updateTicket(item.id, { status: glpiStatus })
+
+    for (const member of data.team) {
+      await insertTeam(item.id, member)
+    }
+
+    for (const cost of data.costs) {
+      await insertCost(item.id, cost)
+    }
+  } catch (err) {
+    console.error('Erreur confirmDrop:', err)
+    tickets.value[index].status = previousStatus
+  }
+
+  pendingDrop.value = null
+}
+function getStatusConfigByGlpiId(glpiId) {
+  return Object.values(statusConfig.value).find(
+    s => String(s.idStatusGlpi) === String(glpiId)
+  )
 }
 </script>
 
@@ -196,21 +226,21 @@ function onDragEnd() {
         :key="item.id"
         draggable="true"
         :class="{ 'dragging': draggingItem?.id === item.id }"
-        :style="{ borderLeft: '5px solid ' + statusConfig[item.status.id]?.color }"
+        :style="{ borderLeft: '5px solid ' + getStatusConfigByGlpiId(item.status.id)?.color }"
         @dragstart="onDragStart(item)"
         @dragend="onDragEnd"
-      >
+        >
         <p class="card-title">{{ item.name }}</p>
         <span
-          class="badge"
-          :style="{
-            backgroundColor: statusConfig[item.status.id]?.background,
-            color: statusConfig[item.status.id]?.color
-          }"
+            class="badge"
+            :style="{
+            backgroundColor: getStatusConfigByGlpiId(item.status.id)?.background,
+            color: getStatusConfigByGlpiId(item.status.id)?.color
+            }"
         >
-          {{ statusConfig[item.status.id]?.traduction }}
+            {{ getStatusConfigByGlpiId(item.status.id)?.traduction }}
         </span>
-      </router-link>
+        </router-link>
 
       <!-- Ajouter un ticket — toujours visible en bas de chaque colonne -->
       <router-link
@@ -233,6 +263,13 @@ function onDragEnd() {
       </router-link>
     </div>
   </div>
+  <ConfirmStatusDialog
+        :show="showConfirm"
+        :pendingDrop="pendingDrop"
+        :statusConfig="statusConfig"
+        @confirm="confirmDrop"
+        @cancel="cancelDrop"
+        />
 </template>
 
 <style scoped>

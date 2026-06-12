@@ -81,7 +81,7 @@ export async function createTicket(jsonData) {
         {
             let itCost = {
                 name: cost.name,
-                duration: cost.duration,
+                duration: cost.duration * 60,
                 cost_time: cost.cost_time,
                 cost_fixed: cost.cost_fixed
             }
@@ -118,7 +118,41 @@ export async function createTicket(jsonData) {
     }
     return results
 }
-
+export async function insertTeam( id_ticket, teamData)
+{
+    try {
+        let itTeam = {
+                id: teamData.id,
+                type: teamData.type,
+                role: teamData.role
+            }
+        console.log(`🧾 TEAM MEMBER PAYLOAD:`, JSON.stringify(itTeam, null, 2))
+        await insertItem('/Assistance/Ticket/' + id_ticket + '/teamMember', itTeam)
+        console.log(`✅ Team member ajouté`)
+    } catch (err) {
+        console.error(`❌ Erreur team member:`, err)
+        throw err
+    }
+}
+export async function insertCost( id_ticket, costData)
+{
+    try {
+        let itCost = {
+                name: costData.name,
+                duration: costData.duration * 60,
+                cost_time: costData.cost_time,
+                cost_fixed: costData.cost_fixed
+            }
+        console.log(`🧾 TEAM cost DATA:`, JSON.stringify(costData, null, 2))
+        console.log(`🧾 TEAM cost PAYLOAD:`, JSON.stringify(itCost, null, 2))
+        await insertItem('/Assistance/Ticket/' + id_ticket + '/cost', itCost)
+        console.log(`✅ Team cost ajouté`)
+        console.log(`✅ Team member ajouté`)
+    } catch (err) {
+        console.error(`❌ Erreur team member:`, err)
+        throw err
+    }
+}
 export async function updateTicket(id, jsonStatusData)
 {
     console.log('Données du ticket à mettre à jour:', jsonStatusData)
